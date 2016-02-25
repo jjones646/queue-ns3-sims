@@ -9,12 +9,13 @@
 #include <sstream>
 
 #include "ns3/core-module.h"
-#include "ns3/network-module.h"
+// #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/point-to-point-layout-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/flow-monitor-helper.h"
+#include "ns3/netanim-module.h"
 
 using namespace ns3;
 
@@ -268,6 +269,9 @@ int main (int argc, char* argv[]) {
     // Set up tracing on the sink node if enabled
     if (traceEN == true)
         linkA.EnablePcap(pcapFn, devicesA.Get(0), true);
+
+    AnimationInterface anim("anim.xml");
+    anim.SetConstantPosition(nodes.Get(0), 1.0, 2.0);
 
     // ===== Run Simulation =====
     NS_LOG(LOG_INFO, "Starting simulation");
