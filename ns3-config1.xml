@@ -1,2 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<global name="RngSeed" value="1"></global>
+<ns3>
+    <!-- Simulation Settings -->
+    <default name="ns3::RealtimeSimulatorImpl::SynchronizationMode" value="BestEffort"/>
+    <default name="ns3::RealtimeSimulatorImpl::HardLimit" value="+100000000.0ns"/>
+    <!-- <default name="ns3::PacketSocket::RcvBufSize" value="131072"/> -->
+
+    <!-- Transport Layer Implementation -->
+    <default name="ns3::TcpL4Protocol::SocketType" value="ns3::TcpTahoe"/>
+    <!-- TCP Segment Size -->
+    <default name="ns3::TcpSocket::SegmentSize" value="512"/>
+    <!-- Window Size -->
+    <default name="ns3::TcpSocketBase::MaxWindowSize" value="8000"/>
+
+    <!-- DropTailQueue Attributes -->
+    <default name="ns3::DropTailQueue::Mode" value="QUEUE_MODE_PACKETS"/>
+    <default name="ns3::DropTailQueue::MaxPackets" value="100"/>
+    <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/>
+
+    <!-- RED Queue Attributes -->
+    
+    <!-- Drop Mode Type (DTYPE_NONE, DTYPE_FORCED, or DTYPE_UNFORCED) -->
+    <!-- <default name="ns3::RedQueue::QueueMode" value="DTYPE_NONE"/> -->
+
+    <!-- Determines unit for QueueLimit -->
+    <default name="ns3::RedQueue::Mode" value="QUEUE_MODE_PACKETS"/>
+    <!-- Average of packet size -->
+    <default name="ns3::RedQueue::MeanPktSize" value="500"/>
+    <!-- Average packet size used during idle times. Used when m_cautions = 3 -->
+    <default name="ns3::RedQueue::IdlePktSize" value="0"/>
+    <!-- True for waiting between dropped packets -->
+    <default name="ns3::RedQueue::Wait" value="true"/>
+    <!-- True to increases dropping probability slowly when average queue exceeds maxthresh -->
+    <default name="ns3::RedQueue::Gentle" value="true"/>
+    <!-- Minimum average length threshold in packets/bytes -->
+    <default name="ns3::RedQueue::MinTh" value="5"/>
+    <!-- Maximum average length threshold in packets/bytes -->
+    <default name="ns3::RedQueue::MaxTh" value="15"/>
+    <!-- Queue limit in bytes/packets -->
+    <default name="ns3::RedQueue::QueueLimit" value="25"/>
+    <!-- Queue weight related to the exponential weighted moving average (EWMA) -->
+    <default name="ns3::RedQueue::QW" value="0.002"/>
+    <!-- The maximum probability of dropping a packet -->
+    <default name="ns3::RedQueue::LInterm" value="50"/>
+    <!-- NS-1 compatibility -->
+    <default name="ns3::RedQueue::Ns1Compat" value="false"/>
+    <!-- The RED link bandwidth -->
+    <default name="ns3::RedQueue::LinkBandwidth" value="1500000bps"/>
+    <!-- The RED link delay -->
+    <default name="ns3::RedQueue::LinkDelay" value="+20000000.0ns"/>
+
+    <!-- Start & Stop Times -->
+    <default name="ns3::Application::StartTime" value="+0.0ns"/>
+    <default name="ns3::Application::StopTime" value="+1000.0s"/>
+
+    <!-- Random Seed Generation -->
+    <global name="RngSeed" value="1"/>
+    <global name="RngRun" value="1"/>
+</ns3>

@@ -1,39 +1,47 @@
 /*
- *  Jonathan Jones
+ *
  *  ECE 6110
  *  Project 1
  */
 
+#include <vector>
 #include <algorithm>
-#include <string>
 #include <sstream>
+#include <string>
 
-#include "ns3/core-module.h"
-// #include "ns3/network-module.h"
-#include "ns3/internet-module.h"
-#include "ns3/point-to-point-module.h"
-#include "ns3/point-to-point-layout-module.h"
 #include "ns3/applications-module.h"
+#include "ns3/config-store-module.h"
+#include "ns3/core-module.h"
 #include "ns3/flow-monitor-helper.h"
+#include "ns3/internet-module.h"
 #include "ns3/netanim-module.h"
+#include "ns3/point-to-point-module.h"
 
 using namespace ns3;
 
+#define LOG_COMPONENT_NAME "QueueSims"
+
 // Set the documentation name
-NS_LOG_COMPONENT_DEFINE ("TCPThroughtputMeasurements");
+NS_LOG_COMPONENT_DEFINE (LOG_COMPONENT_NAME);
 
 namespace
 {
 const int TCP_SERVER_BASE_PORT = 8080;
-const int RAND_NUM_SEED = 11223344;
-const int RAND_SUM_RUN  = 0;
-size_t nFlowBytes;
 }
 
-class GoodputTracker {
+class GoodputTracker
+{
 public:
-    GoodputTracker() : recvCount(0), port(0), isValid(true) {};
-    GoodputTracker(const Time& t) : recvCount(0), port(0), startTime(t), isValid(true) {};
+    GoodputTracker () :
+            recvCount (0), port (0), isValid (true)
+    {
+    }
+    ;
+    GoodputTracker (const Time& t) :
+            recvCount (0), port (0), startTime (t), isValid (true)
+    {
+    }
+    ;
 
     size_t recvCount;
     int port;
@@ -45,258 +53,289 @@ public:
 // global array of GoodputTracker objects
 std::vector<GoodputTracker> goodputs;
 
-void TrackGoodput(std::string context, Ptr<const Packet> p, const Address& address) {
+void TrackGoodput (std::string context, Ptr<const Packet> p, const Address& address)
+{
     // Get the id of the received packed
-    size_t idIndex = context.find("ApplicationList/");
+    size_t idIndex = context.find ("ApplicationList/");
     // the tcp sink's id that this callback is being executed for will
     // be 16 characters after the index that's found from the previous command
     idIndex += 16;
 
     // Increment the correct goodput tracker byte count
-    if (idIndex != std::string::npos) {
+    if (idIndex != std::string::npos)
+    {
         int flowId;
         // determine which tcp connection this callback was invoked for
-        std::istringstream (std::string(context.substr(idIndex, 1))) >> flowId;
-        if (goodputs.at(flowId).isValid == true) {
-            goodputs.at(flowId).recvCount += p->GetSize();
+        std::istringstream (std::string (context.substr (idIndex, 1))) >> flowId;
+        if (goodputs.at (flowId).isValid == true)
+        {
+            goodputs.at (flowId).recvCount += p->GetSize ();
             // NS_LOG(LOG_DEBUG, "Sink RX->\tFlow: " << flowId
             //        << "\tFrom: " << InetSocketAddress::ConvertFrom(address).GetIpv4() << ":" << InetSocketAddress::ConvertFrom(address).GetPort()
             //        << "\tSize: " << p->GetSize() << " bytes"
             //        << "\tRecv: " << goodputs.at(flowId).recvCount << " bytes");
 
             // If we're at or past the limit, set the stop time for the tcp flow
-            if (goodputs.at(flowId).recvCount >= nFlowBytes) {
-                goodputs.at(flowId).endTime = Simulator::Now();
+            if (goodputs.at (flowId).recvCount >= nFlowBytes)
+            {
+                goodputs.at (flowId).endTime = Simulator::Now ();
                 // set the object to be invalid so we won't increment the counter anymore
-                goodputs.at(flowId).isValid = false;
+                goodputs.at (flowId).isValid = false;
             }
         }
     }
 }
 
-void SetSimConfigs() {
-    // Set the log levels for this module
-    LogComponentEnable("TCPThroughtputMeasurements", LOG_LEVEL_ALL);
-
-    // 1 ns time resolution, the default value
-    Time::SetResolution(Time::NS);
-
-    // The the random number seed & run globally
-    RngSeedManager::SetSeed(RAND_NUM_SEED);
-    RngSeedManager::SetRun(RAND_SUM_RUN);
-}
-
-
-int main (int argc, char* argv[]) {
-    // Initial simulation configurations
-    SetSimConfigs();
-
-    // Parse any command line arguments
-    CommandLine cmd;
-    size_t segSize =    128;
-    size_t winSize =    2000;
-    size_t queueSize =  2000;
-    size_t nFlows =     1;
-    nFlowBytes =        100000000;
-    bool tcpType =      0;
-    std::string pcapFn = "tcp-trace-results";
-    bool   traceEN =    false;
-
-    cmd.AddValue("segSize",    "TCP segment size in bytes", segSize);
-    cmd.AddValue("windowSize",    "TCP maximum receiver advertised window size in bytes", winSize);
-    cmd.AddValue("queueSize",  "Queue limit on the bottleneck link in bytes", queueSize);
-    cmd.AddValue("nFlows",     "Number of simultaneous TCP flows", nFlows);
-    cmd.AddValue("nFlowBytes", "Number of bytes to send for each TCP flow", nFlowBytes);
-    cmd.AddValue("tcpType",    "Simulate using Tahoe (0) or Reno (1)", tcpType);
-    cmd.AddValue("trace",      "Enable/Disable dumping the trace at the TCP sink", traceEN);
-    cmd.AddValue("traceFile",  "Base name given to where the results are saved when enabled", pcapFn);
-    cmd.Parse(argc, argv);
-
-
-    // ===== Nodes =====
-    // Create the container used in simulation for
-    // representing the computers
-    NS_LOG(LOG_DEBUG, "Creating " << 4 << " nodes");
+NetDeviceContainer CreateCsmaStar (size_t num_links)
+{
+    if num_links < 2
+    {
+        NS_LOG (LOG_ERROR, "Can not create star topology subnet with " << num_links << " device!");
+    }
+    else
+    {
+        NS_LOG (LOG_DEBUG, "Creating " << num_links << " link CSMA star topology");
+    }
 
     NodeContainer nodes;
-    nodes.Create(4);
+    nodes.Create (num_links);
 
+    csma CsmaHelper ();
+    csma.SetChannelAttribute ("DataRate", DataRateValue (5000000));
+    csma.SetChannelAttribute ("Delay", TimeValue (MilliSeconds (2)));
+    return csma.Install (nodes);
+}
 
-    // ===== PointToPoint Links =====
+NetDeviceContainer InitNetNodes ()
+{
+    std::vector < NodeContainer > allNodes;
+    // Create the container used in simulation for
+    // representing the computers
+    NS_LOG (LOG_DEBUG, "Creating " << 4 << " CSMA stars");
+    for (size_t i = 0; i < 4; ++i)
+        allNodes.push_back (CreateCsmaStar (4));
+
+    NS_LOG (LOG_DEBUG, "Creating CSMA dumbbell link");
+    allNodes.push_back (CreateCsmaStar (2));
+
     // Create 3 point-to-point links
-    NS_LOG(LOG_DEBUG, "Creating point-to-point links");
+    NS_LOG (LOG_DEBUG, "Linking the CSMA stars into a larger overall topology");
 
-    PointToPointHelper linkA, linkB, linkC;
+    PointToPointHelper linkA, linkB, linkC, linkD, linkCore;
 
     // Set their attributes
-    linkA.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
-    linkA.SetChannelAttribute("Delay", StringValue("10ms"));
+    linkA.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    linkA.SetChannelAttribute ("Delay", StringValue ("10ms"));
 
-    linkB.SetDeviceAttribute("DataRate", StringValue("1Mbps"));
-    linkB.SetChannelAttribute("Delay", StringValue("20ms"));
+    linkB.SetDeviceAttribute ("DataRate", StringValue ("1Mbps"));
+    linkB.SetChannelAttribute ("Delay", StringValue ("20ms"));
 
-    NS_LOG(LOG_DEBUG, "Setting bottleneck link's queue size to " << queueSize << " bytes");
-    linkB.SetQueue("ns3::DropTailQueue", "MaxBytes", UintegerValue(queueSize), "Mode", StringValue("QUEUE_MODE_BYTES"));
+    linkC.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    linkC.SetChannelAttribute ("Delay", StringValue ("10ms"));
 
-    linkC.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
-    linkC.SetChannelAttribute("Delay", StringValue("10ms"));
+    linkD.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    linkD.SetChannelAttribute ("Delay", StringValue ("10ms"));
 
+    linkCore.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    linkCore.SetChannelAttribute ("Delay", StringValue ("10ms"));
 
     // ===== Network Devices =====
-    NS_LOG(LOG_DEBUG, "Creating network interface devices");
+    NS_LOG (LOG_DEBUG, "Creating network interface devices");
 
-    NetDeviceContainer devicesA, devicesB, devicesC;
+    NetDeviceContainer devicesA, devicesB, devicesC, devicesD, devicesCore;
 
-    // Install the devices onto their respective links
-    devicesA = linkA.Install(nodes.Get(0), nodes.Get(1));
-    devicesB = linkB.Install(nodes.Get(1), nodes.Get(2));
-    devicesC = linkC.Install(nodes.Get(2), nodes.Get(3));
+    // Last vector element holds the nodes for the dumbbell link
+    devicesA = linkA.Install (allNodes.at (0).Get (0), allNodes.back ().Get (0));
+    devicesB = linkB.Install (allNodes.at (1).Get (0), allNodes.back ().Get (0));
+    devicesC = linkC.Install (allNodes.at (2).Get (0), allNodes.back ().Get (1));
+    devicesD = linkD.Install (allNodes.at (3).Get (0), allNodes.back ().Get (1));
+    // Now, bring the two halves together
+    devicesCore = linkCore.Install (allNodes.back ().Get (0), allNodes.back ().Get (1));
 
+    // Now that it's constructed & the code is easy to follow, let's push it all
+    // into contiguous memory and return it as a NetDeviceContainer. We'll place the
+    // dumbbell nodes at the end for indexing at intervals of 4 for the startpoint LANs
+    devicesA.Add (devicesB);
+    devicesA.Add (devicesC);
+    devicesA.Add (devicesD);
+    devicesA.Add (devicesCore);
+
+    return devicesA;
+}
+
+void SetSimConfigs (const std::string& xml_file)
+{
+    /*
+     * Read in the XML configuration specified
+     */
+    Config::SetDefault ("ns3::ConfigStore::Filename", StringValue (xml_file));
+    Config::SetDefault ("ns3::ConfigStore::Mode", StringValue ("Load"));
+    Config::SetDefault ("ns3::ConfigStore::FileFormat", StringValue ("Xml"));
+    ConfigStore inputConfig;
+    inputConfig.ConfigureDefaults ();
+
+    // Set the log levels for this module
+    LogComponentEnable (LOG_COMPONENT_NAME, LOG_LEVEL_ALL);
+
+    // Other logging modules enabled
+    LogComponentEnable ("CsmaOneSubnetExample", LOG_LEVEL_INFO);
+
+    // 1 ns time resolution, the default value
+    Time::SetResolution (Time::NS);
+}
+
+int main (int argc, char* argv[])
+{
+    // Parse any command line arguments
+    CommandLine cmd;
+
+    size_t nFlows = 1;
+    nFlowBytes = 1000;
+    std::string pcapFn = "tcp-trace-results";
+    bool traceEN = false;
+    std::string xml_fn ("/home/jonathan/Documents/queue-sims/ns3-config1.xml");
+
+    cmd.AddValue ("nFlows", "Number of simultaneous TCP flows", nFlows);
+//    cmd.AddValue ("nFlowBytes", "Number of bytes to send for each TCP flow", nFlowBytes);
+    cmd.AddValue ("trace", "Enable/Disable dumping the trace at the TCP sink", traceEN);
+    cmd.AddValue ("traceFile", "Base name given to where the results are saved when enabled", pcapFn);
+    cmd.AddValue ("xml", "The name for the XML configuration file.", xml_fn);
+    cmd.Parse (argc, argv);
+
+    // Initial simulation configurations
+    SetSimConfigs (xml_fn);
+
+    // Star CSMA LANs for every 4 node indexes. 2 back nodes make up the dumbbell link
+    NetDeviceContainer nodes = InitNetNodes ();
 
     // ===== Internet Stack Assignment =====
     // Set IPv4, IPv6, UDP, & TCP stacks to all nodes in the simulation
-    NS_LOG(LOG_DEBUG, "Setting simulation to use IPv4, IPv6, UDP, & TCP stacks");
+    NS_LOG (LOG_DEBUG, "Setting simulation to use IPv4, IPv6, UDP, & TCP stacks");
 
     InternetStackHelper stack;
-    stack.InstallAll();
-
+    stack.InstallAll ();
 
     // ===== IPv4 Addresses ======
-    NS_LOG(LOG_DEBUG, "Assigning IPv4 addresses");
+    NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses");
 
-    Ipv4AddressHelper addrsA, addrsB, addrsC;
-    Ipv4InterfaceContainer nicsA, nicsB, nicsC;
+    Ipv4AddressHelper addrsA, addrsB, addrsC, addrsD, addrsCore;
+//    Ipv4InterfaceContainer nicsA, nicsB, nicsC, nicsD, nicsCore;
+
 
     // Define the addresses
-    addrsA.SetBase("10.0.0.0",   "255.255.255.0");
-    addrsB.SetBase("10.64.0.0",  "255.255.255.0");
-    addrsC.SetBase("10.128.0.0", "255.255.255.0");
+    addrsA.SetBase ("10.0.0.0", "255.255.255.0");
+    addrsB.SetBase ("10.64.0.0", "255.255.255.0");
+    addrsC.SetBase ("10.128.0.0", "255.255.255.0");
+    addrsD.SetBase ("10.192.0.0", "255.255.255.0");
+    addrsCore.SetBase ("192.168.0.0", "255.255.255.192");
 
     // Assign the addresses to devices
-    nicsA = addrsA.Assign(devicesA);
-    nicsB = addrsB.Assign(devicesB);
-    nicsC = addrsC.Assign(devicesC);
+    Ipv4InterfaceContainer nics;
+    nics = addrsA.Assign (devicesA);
+    nics.Add(addrsB.Assign (devicesB));
+    nics.Add(addrsC.Assign (devicesC));
+    nics.Add(addrsD.Assign (devicesD));
+    nics.Add(addrsCore.Assign (devicesCore));
 
-
-    // ===== Routing =====
     // Enable IPv4 routing
-    Ipv4GlobalRoutingHelper::PopulateRoutingTables();
+    Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
-
-    // ===== Other TCP Configs =====
-    // Set the default segment size used for all TCP connections
-    NS_LOG(LOG_INFO, "Setting TCP segment size to " << segSize << " bytes");
-    Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
-
-    // Set the default max window size for all TCP connections
-    NS_LOG(LOG_INFO, "Setting TCP max advertised window size to " << winSize << " bytes");
-    Config::SetDefault("ns3::TcpSocketBase::MaxWindowSize", UintegerValue(winSize));
-
-
-    // ===== TCP Type =====
-    // Set the type of TCP that will be used for all simulations
-    if (tcpType == 1) {
-        Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
-        NS_LOG(LOG_INFO, "Using TCP RENO");
-    }
-    else {
-        Config::SetDefault("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
-        NS_LOG(LOG_INFO, "Using TCP TAHOE");
-    }
-
+//    Ipv4::SetRoutingProtocol ()
 
     // ===== Application Client(s) =====
     // Create an application to send TCP data to the server
-    NS_LOG(LOG_DEBUG, "Creating " << nFlows << " TCP flow" << (nFlows == 1 ? "" : "s"));
+    NS_LOG (LOG_DEBUG, "Creating " << nFlows << " TCP flow" << (nFlows == 1 ? "" : "s"));
+
+    ApplicationContainer udpApps;
+
+//    UdpClientHelper ();
+    OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress (interfaces.GetAddress (1), port)));
+    udpApps = onoff.Install (nodes.Get (0));
+    // Start the application
+    udpApps.Start (Seconds (1.0));
+    udpApps.Stop (Seconds (10.0));
+    // Create an optional packet sink to receive these packets
+    PacketSinkHelper sink ("ns3::UdpSocketFactory", Address (InetSocketAddress (Ipv4Address::GetAny (), port)));
+    app = sink.Install (nodes.Get (1));
+    app.Start (Seconds (0.0));
 
     // App container for holding all of the TCP flows
     ApplicationContainer clientApps;
 
     // Create the random variable object for setting the initial flow start times
+    for (size_t i = 0; i < nFlows; ++i)
+    {
+        Ptr < UniformRandomVariable > randVar = CreateObject<UniformRandomVariable> ();
+        NS_LOG (LOG_DEBUG, "Creating TCP source flow to " << nicsA.GetAddress (0) << ":" << TCP_SERVER_BASE_PORT + i);
 
-    for (size_t i = 0; i < nFlows; ++i) {
-        Ptr<UniformRandomVariable> randVar = CreateObject<UniformRandomVariable>();
-        NS_LOG(LOG_DEBUG, "Creating TCP source flow to " << nicsA.GetAddress(0) << ":" << TCP_SERVER_BASE_PORT + i);
+        Address tcpSinkAddr (InetSocketAddress (nicsA.GetAddress (0), TCP_SERVER_BASE_PORT + i));
 
-        Address tcpSinkAddr(InetSocketAddress(nicsA.GetAddress(0), TCP_SERVER_BASE_PORT + i));
-
-        BulkSendHelper tcpSource("ns3::TcpSocketFactory", tcpSinkAddr);
+        BulkSendHelper tcpSource ("ns3::TcpSocketFactory", tcpSinkAddr);
         ApplicationContainer tcpFlow;
 
         // Set the attributes for how we send the data
-        tcpSource.SetAttribute("MaxBytes", UintegerValue(nFlowBytes));
+        tcpSource.SetAttribute ("MaxBytes", UintegerValue (nFlowBytes));
 
         // Sending to the server node & starting at the last node in our nodes list
-        tcpFlow = tcpSource.Install(nodes.Get(nodes.GetN() - 1));
+        tcpFlow = tcpSource.Install (nodes.Get (nodes.GetN () - 1));
 
         // Set the starting time to some uniformly distributed random time between 0.0s and 0.1s
-        goodputs.push_back(GoodputTracker(Seconds(0.1 * (randVar->GetValue(0, randVar->GetMax()) / randVar->GetMax()))));
-        tcpFlow.Start(goodputs.back().startTime);
+        goodputs.push_back (
+                GoodputTracker (Seconds (0.1 * (randVar->GetValue (0, randVar->GetMax ()) / randVar->GetMax ()))));
+        tcpFlow.Start (goodputs.back ().startTime);
 
         // Set the TCP port we track for this flow
-        goodputs.back().port = TCP_SERVER_BASE_PORT + i;
+        goodputs.back ().port = TCP_SERVER_BASE_PORT + i;
 
         // Add this app container to the object holding all of our source flow apps
-        clientApps.Add(tcpFlow);
+        clientApps.Add (tcpFlow);
     }
-
 
     // ===== Application Server(s) =====
     ApplicationContainer serverApps;
 
-    for (size_t i = 0; i < nFlows; ++i) {
+    for (size_t i = 0; i < nFlows; ++i)
+    {
         // Create a TCP packet sink
-        NS_LOG(LOG_DEBUG, "Creating TCP sink on " << nicsA.GetAddress(0) << ":" << goodputs.at(i).port);
+        NS_LOG (LOG_DEBUG, "Creating TCP sink on " << nicsA.GetAddress (0) << ":" << goodputs.at (i).port);
 
         // The TCP sink address
-        Address tcpSinkAddr(InetSocketAddress(nicsA.GetAddress(0), goodputs.at(i).port));
-        PacketSinkHelper tcpSink("ns3::TcpSocketFactory", tcpSinkAddr);
+        Address tcpSinkAddr (InetSocketAddress (nicsA.GetAddress (0), goodputs.at (i).port));
+        PacketSinkHelper tcpSink ("ns3::TcpSocketFactory", tcpSinkAddr);
 
         // Assign it to the list of app servers
-        serverApps.Add(tcpSink.Install(nodes.Get(0)));
+        serverApps.Add (tcpSink.Install (nodes.Get (0)));
     }
 
     // Set all of the sink start times to 0
-    serverApps.Start(Seconds(0.0));
+    serverApps.Start (Seconds (0.0));
 
     // Set the advertise window by setting the receiving end's max RX buffer. Not doing this for
     // some reason causes ns-3 to not adheer to the "MaxWindowSize" set earilier?
-    Config::Set("/NodeList/0/$ns3::TcpL4Protocol/SocketList/*/RcvBufSize", UintegerValue(winSize));
+//    Config::Set ("/NodeList/0/$ns3::TcpL4Protocol/SocketList/*/RcvBufSize", UintegerValue (winSize));
 
     // Set the trace callback for receiving a packet at the sink destination
-    Config::Connect("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx", MakeCallback(&TrackGoodput));
+    Config::Connect ("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx", MakeCallback (&TrackGoodput));
 
     // Set up tracing on the sink node if enabled
-    if (traceEN == true)
-        linkA.EnablePcap(pcapFn, devicesA.Get(0), true);
+    if (traceEN == true) linkA.EnablePcap (pcapFn, devicesA.Get (0), true);
 
-    AnimationInterface anim("anim.xml");
-    anim.SetConstantPosition(nodes.Get(0), 1.0, 2.0);
+//	AnimationInterface anim("anim.xml");
+//	anim.SetConstantPosition(nodes.Get(0), 1.0, 2.0);
 
-    // ===== Run Simulation =====
-    NS_LOG(LOG_INFO, "Starting simulation");
+    // Run the simulation
+    NS_LOG (LOG_INFO, "Starting simulation");
+    Simulator::Run ();
 
-    Simulator::Run();
-    Time sim_endTime = Simulator::Now();
+    // Get the final simulation runtime
+    Time sim_endTime = Simulator::Now ();
 
-    Simulator::Destroy();
+    Simulator::Destroy ();
 
-    NS_LOG(LOG_INFO, "Simulation complete");
+    NS_LOG (LOG_INFO, "Simulation complete");
 
     // Print out the overall simulation runtime
-    NS_LOG(LOG_DEBUG, "Total time: " << Seconds(sim_endTime));
-
-    // Print out every flow's stats
-    for (size_t i = 0; i < goodputs.size(); ++i) {
-        // endtime - startime
-        double runtime = goodputs.at(i).endTime.GetSeconds() - goodputs.at(i).startTime.GetSeconds();
-        double goodputVal = goodputs.at(i).recvCount / runtime;
-
-        // Print out the overall goodput
-        std::cout << "tcp," << tcpType << ",flow," << i << ",windowSize," << winSize << ",queueSize,"
-                  << queueSize << ",segSize," << segSize << ",goodput," << goodputVal;
-    }
-
+    std::cout << "Total time: " << Seconds (sim_endTime);
 
     return 0;
 }
