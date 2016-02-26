@@ -4,11 +4,11 @@
  */
 
 #include <algorithm>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
-#include <numeric>
 
 #include "ns3/applications-module.h"
 #include "ns3/config-store-module.h"
@@ -63,16 +63,16 @@ int main (int argc, char* argv[])
 {
 	// Parse any command line arguments
 	CommandLine cmd;
-	size_t nFlows = 1;
-	std::string pcapFn = "tcp-trace-results";
+	std::string pcapFn = "queue-trace-results";
 	bool traceEN = false;
 	std::string xml_fn ("/home/jonathan/Documents/queue-sims/ns3-config1.xml");
 
-	cmd.AddValue ("nFlows", "Number of simultaneous TCP flows", nFlows);
 	cmd.AddValue ("trace", "Enable/Disable dumping the trace at the TCP sink", traceEN);
 	cmd.AddValue ("traceFile", "Base name given to where the results are saved when enabled", pcapFn);
 	cmd.AddValue ("xml", "The name for the XML configuration file.", xml_fn);
 	cmd.Parse (argc, argv);
+
+	const double endTime = 10.0;
 
 	// Initial simulation configurations
 	SetSimConfigs (xml_fn);
@@ -255,96 +255,21 @@ int main (int argc, char* argv[])
 	ipv4.SetBase ("57.20.43.0", "255.255.255.0");
 	ipv4.Assign (coreDevs);
 
-	Ipv4InterfaceContainer iA, iB, iC, iD;
 	ipv4.SetBase ("94.0.0.0", "255.255.255.0");
 	for (size_t i = 0; i < nA.GetN (); ++i)
-		iA.Add (ipv4.Assign (nA.Get (i)->GetDevice (0)));
+		ipv4.Assign (nA.Get (i)->GetDevice (0));
 
 	ipv4.SetBase ("94.1.0.0", "255.255.255.0");
 	for (size_t i = 0; i < nB.GetN (); ++i)
-		iA.Add (ipv4.Assign (nB.Get (i)->GetDevice (0)));
+		ipv4.Assign (nB.Get (i)->GetDevice (0));
 
 	ipv4.SetBase ("94.2.0.0", "255.255.255.0");
 	for (size_t i = 0; i < nC.GetN (); ++i)
-		iA.Add (ipv4.Assign (nC.Get (i)->GetDevice (0)));
+		ipv4.Assign (nC.Get (i)->GetDevice (0));
 
 	ipv4.SetBase ("94.3.0.0", "255.255.255.0");
 	for (size_t i = 0; i < nD.GetN (); ++i)
-		iA.Add (ipv4.Assign (nD.Get (i)->GetDevice (0)));
-
-//
-//	ipv4.SetBase ("10.64.32.0", "255.255.255.0");
-//	iB = ipv4.Assign (nB);
-//
-//	ipv4.SetBase ("10.64.64.0", "255.255.255.0");
-//	iC = ipv4.Assign (nC);
-//
-//	ipv4.SetBase ("10.64.192.0", "255.255.255.0");
-//	iD = ipv4.Assign (nD);
-
-	/*
-	 * Assign addresses to the connecting point-to-point links.
-	 */
-//	NS_LOG (LOG_DEBUG, "Assigning addresses to " << hubDevs.GetN () << " hub interface devices");
-//	Ipv4AddressHelper addrsLeft, addrsRight;
-//	addrsLeft.SetBase ("57.91.0.0", "255.255.255.0");
-//	addrsRight.SetBase ("75.15.0.0", "255.255.255.0");
-//	hubNics.Add (addrsLeft.Assign (hubDevs.Get (1)));
-//	hubNics.Add (addrsLeft.Assign (hubDevs.Get (3)));
-//	hubNics.Add (addrsRight.Assign (hubDevs.Get (5)));
-//	hubNics.Add (addrsRight.Assign (hubDevs.Get (7)));
-//	hubNics.Add (addrsLeft.Assign (coreDevs.Get (0)));
-//	hubNics.Add (addrsRight.Assign (coreDevs.Get (1)));
-//	NS_LOG (LOG_DEBUG, "Assigning addresses to " << coreDevs.GetN () << " core interface devices");
-//	Ipv4AddressHelper addrsCore;
-//	addrsCore.SetBase ("8.6.4.0", "255.255.255.192");
-//	coreNics.Add (addrsCore.Assign (coreDevs));
-//	NS_LOG (LOG_DEBUG, "Enabling global routing");
-//	Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-//	NS_LOG (LOG_DEBUG, nics.GetN () << " total devices");
-//	NS_LOG (LOG_DEBUG, nodes.GetN () << " total nodes");
-//
-//	for (size_t i = 0; i < coreNodes.GetN (); ++i) {
-//		Ptr < Node > n = coreNodes.Get (i);
-//		Ptr < Ipv4 > ip = n->GetObject<Ipv4> ();
-//		// Iterate over all ones associated with this interface
-//		NS_LOG (LOG_DEBUG, "Address list for coreNode " << i << ":");
-//		for (size_t j = 0; j < ip->GetNInterfaces (); ++j) {
-//			NS_LOG (LOG_DEBUG, "  Interface " << j << ":");
-//			for (size_t k = 0; k < ip->GetNAddresses (j); ++k) {
-//				Ipv4Address addr = ip->GetAddress (j, k).GetLocal ();
-//				NS_LOG (LOG_DEBUG, "      " << addr);
-//			}
-//		}
-//	}
-//
-//	for (size_t i = 0; i < hubNodes.GetN (); ++i) {
-//		Ptr < Node > n = hubNodes.Get (i);
-//		Ptr < Ipv4 > ip = n->GetObject<Ipv4> ();
-//		// Iterate over all ones associated with this interface
-//		NS_LOG (LOG_DEBUG, "Address list for hubNode " << i << ":");
-//		for (size_t j = 0; j < ip->GetNInterfaces (); ++j) {
-//			NS_LOG (LOG_DEBUG, "  Interface " << j << ":");
-//			for (size_t k = 0; k < ip->GetNAddresses (j); ++k) {
-//				Ipv4Address addr = ip->GetAddress (j, k).GetLocal ();
-//				NS_LOG (LOG_DEBUG, "      " << addr);
-//			}
-//		}
-//	}
-//
-//	for (size_t i = 0; i < nodes.GetN (); ++i) {
-//		Ptr < Node > n = nodes.Get (i);
-//		Ptr < Ipv4 > ip = n->GetObject<Ipv4> ();
-//		// Iterate over all ones associated with this interface
-//		NS_LOG (LOG_DEBUG, "Address list for endpointNode " << i << ":");
-//		for (size_t j = 0; j < ip->GetNInterfaces (); ++j) {
-//			NS_LOG (LOG_DEBUG, "  Interface " << j << ":");
-//			for (size_t k = 0; k < ip->GetNAddresses (j); ++k) {
-//				Ipv4Address addr = ip->GetAddress (j, k).GetLocal ();
-//				NS_LOG (LOG_DEBUG, "      " << addr);
-//			}
-//		}
-//	}
+		ipv4.Assign (nD.Get (i)->GetDevice (0));
 
 	// Create traffic sending applications
 	ApplicationContainer udpApps, tcpApps, udpSinkApps, tcpSinkApps;
@@ -357,7 +282,7 @@ int main (int argc, char* argv[])
 
 	// Create the UDP traffic
 	NS_LOG (LOG_DEBUG, "Constructing UDP traffic");
-	for (size_t i = 0; i < nA.GetN (); ++i) {
+	for (size_t i = 1; i < nA.GetN (); ++i) {
 		Ptr < Node > nodeSrc = nA.Get (i);
 		Ptr < Ipv4 > ipSrc = nodeSrc->GetObject<Ipv4> ();
 		Ipv4Address addrSrc = ipSrc->GetAddress (1, 0).GetLocal ();
@@ -371,7 +296,7 @@ int main (int argc, char* argv[])
 		udpSinkApps.Add (udpSink.Install (nodeDst));
 
 		OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress (addrDst, udpPort)));
-		onoff.SetAttribute ("DataRate", DataRate ("500kbps"));
+		onoff.SetAttribute ("DataRate", DataRateValue (DataRate ("500kbps")));
 		onoff.SetAttribute ("PacketSize", UintegerValue (512));
 		udpApps.Add (onoff.Install (nodeSrc));
 
@@ -380,7 +305,7 @@ int main (int argc, char* argv[])
 
 	// Create the TCP traffic
 	NS_LOG (LOG_DEBUG, "Constructing TDP traffic");
-	for (size_t i = 0; i < nB.GetN (); ++i) {
+	for (size_t i = 1; i < nB.GetN (); ++i) {
 		Ptr < Node > nodeSrc = nB.Get (i);
 		Ptr < Ipv4 > ipSrc = nodeSrc->GetObject<Ipv4> ();
 		Ipv4Address addrSrc = ipSrc->GetAddress (1, 0).GetLocal ();
@@ -405,7 +330,6 @@ int main (int argc, char* argv[])
 	udpApps.Start (Seconds (0.0));
 	tcpApps.Start (Seconds (0.0));
 
-	const double endTime = 10.0;
 	udpApps.Stop (Seconds (endTime));
 	tcpApps.Stop (Seconds (endTime));
 
@@ -413,7 +337,7 @@ int main (int argc, char* argv[])
 	Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
 	// Log traces across the single link
-	linkCore.EnablePcapAll ("linkCore");
+	linkCore.EnablePcapAll (pcapFn);
 
 	// Run the simulation
 	NS_LOG (LOG_INFO, "Starting simulation");
