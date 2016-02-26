@@ -297,27 +297,26 @@ int main (int argc, char* argv[])
 	typedef std::pair<size_t, size_t> nodePair_t;
 	std::vector<nodePair_t> udpConvs, tcpConvs;
 
-	// Create pairs of nodes that will send data back and forwarth
-//	const size_t nodesPerLan = nodesPerSpoke * starSpokes.at (0);
-	const uint16_t uspPort = 9, tcpPort = 8080;
+	const uint16_t udpPort = 9, tcpPort = 8080;
 
-	PacketSinkHelper udpSink ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), uspPort));
+	// Helper objects for creating the TCP & UDP sinks
+	PacketSinkHelper udpSink ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), udpPort));
 	PacketSinkHelper tcpSink ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), tcpPort));
 
-	// Star LAN numbers 0 and 2 will be sending UDP data across the queues
-//	for (size_t i = 0; i < nodesPerLan; ++i)
-	for (size_t i = 0; i < starSpokes.size(); ++i) {
-		const nodesPerLan = nodesPerStoke * starSpokes.at(i);
+	// Create pairs of nodes that will send data back and forwarth
+	const size_t nodesPerLan = nodesPerSpoke * starSpokes.front ();
+	for (size_t i = 0; i < nodesPerLan; ++i) {
+		// Star LAN numbers 0 and 2 will be sending UDP data across the queues
 		udpConvs.push_back (std::make_pair ((0 * nodesPerLan) + i, (2 * nodesPerLan) + i));
+		// Star LAN numbers 1 and 3 will be sending TCP data across the queues
+		tcpConvs.push_back (std::make_pair ((1 * nodesPerLan) + i, (3 * nodesPerLan) + i));
 	}
 
+	// Create the UDP traffic
 	for (size_t i = 0; i < udpConvs.size (); ++i) {
 		nodePair_t c = udpConvs.at (i);
 
-		OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress (nics.GetAddress (c.first), uspPort)));
-//		onoff.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
-//		onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
-
+		OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress (nics.GetAddress (c.first), udpPort)));
 		udpApps.Add (onoff.Install (nodes.Get (c.first)));
 
 		// Construct the sink end of the TCP flow - install on all just to be safe
@@ -325,24 +324,18 @@ int main (int argc, char* argv[])
 
 		NS_LOG (LOG_DEBUG,
 				nics.GetAddress (c.first) << " (node " << c.first << ") will send random UDP traffic to "
-						<< nics.GetAddress (c.second) << ":" << udp_port << " (node " << c.second << ")");
+						<< nics.GetAddress (c.second) << ":" << udpPort << " (node " << c.second << ")");
 	}
 
 	// Start the UDP applications
 	udpSinkApps.Start (Seconds (0.0));
 	udpApps.Start (Seconds (0.0));
 
-	// Star LAN numbers 1 and 3 will be sending TCP data across the queues
-	for (size_t i = 0; i < nodesPerLan; ++i)
-		tcpConvs.push_back (std::make_pair ((1 * nodesPerLan) + i, (3 * nodesPerLan) + i));
-
+	// Create the TCP traffic
 	for (size_t i = 0; i < tcpConvs.size (); ++i) {
 		nodePair_t c = tcpConvs.at (i);
 
 		OnOffHelper onoff ("ns3::TcpSocketFactory", Address (InetSocketAddress (nics.GetAddress (c.second), tcpPort)));
-//		onoff.SetAttribute ("OnTime", StringValue ("ns3::ConstantRandomVariable[Constant=1]"));
-//		onoff.SetAttribute ("OffTime", StringValue ("ns3::ConstantRandomVariable[Constant=0]"));
-
 		tcpApps.Add (onoff.Install (nodes.Get (c.first + 1)));
 
 		// Construct the sink end of the TCP flow - install on all just to be safe
@@ -350,14 +343,14 @@ int main (int argc, char* argv[])
 
 		NS_LOG (LOG_DEBUG,
 				nics.GetAddress (c.first) << " (node " << c.first << ") will send random TCP traffic to "
-						<< nics.GetAddress (c.second) << ":" << tcp_port << " (node " << c.second << ")");
+						<< nics.GetAddress (c.second) << ":" << tcpPort << " (node " << c.second << ")");
 	}
 
 	// Start the TCP applications
 	tcpSinkApps.Start (Seconds (0.0));
 	tcpApps.Start (Seconds (0.0));
 
-	const double endTime = 1000.0;
+	const double endTime = 50.0;
 	udpApps.Stop (Seconds (endTime));
 	tcpApps.Stop (Seconds (endTime));
 
