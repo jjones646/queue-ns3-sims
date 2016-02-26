@@ -63,18 +63,20 @@ int main (int argc, char* argv[])
 {
 	// Parse any command line arguments
 	CommandLine cmd;
-	std::string pcapFn = "queue-trace-results";
+	std::string pcapFn ("queue-trace-results");
 	bool traceEN = false;
+	double endTime = 15.0;
 	std::string xml_fn ("/home/jonathan/Documents/queue-sims/ns3-config1.xml");
 
 	cmd.AddValue ("trace", "Enable/Disable dumping the trace at the TCP sink", traceEN);
 	cmd.AddValue ("traceFile", "Base name given to where the results are saved when enabled", pcapFn);
+	cmd.AddValue ("endTime", "The duration when the simulation should be stopped", endTime);
 	cmd.AddValue ("xml", "The name for the XML configuration file.", xml_fn);
 	cmd.Parse (argc, argv);
 
-	const double endTime = 10.0;
+//	const double endTime = 10.0;
 
-	// Initial simulation configurations
+// Initial simulation configurations
 	SetSimConfigs (xml_fn);
 
 	/*
@@ -187,16 +189,17 @@ int main (int argc, char* argv[])
 	 * Set the attributes for the links between the star subnets and
 	 * for the dumbbell link.
 	 */
-//	linkA.SetQueue ("ns3::DropTailQueue");
-//	linkB.SetQueue ("ns3::DropTailQueue");
-//	linkC.SetQueue ("ns3::DropTailQueue");
-//	linkD.SetQueue ("ns3::DropTailQueue");
-//	linkCore.SetQueue ("ns3::DropTailQueue");
-	linkCore.SetQueue ("ns3::RedQueue");
-	linkA.SetQueue ("ns3::RedQueue");
-	linkB.SetQueue ("ns3::RedQueue");
-	linkD.SetQueue ("ns3::RedQueue");
-	linkC.SetQueue ("ns3::RedQueue");
+	linkA.SetQueue ("ns3::DropTailQueue");
+	linkB.SetQueue ("ns3::DropTailQueue");
+	linkC.SetQueue ("ns3::DropTailQueue");
+	linkD.SetQueue ("ns3::DropTailQueue");
+	linkCore.SetQueue ("ns3::DropTailQueue");
+
+//	linkCore.SetQueue ("ns3::RedQueue");
+//	linkA.SetQueue ("ns3::RedQueue");
+//	linkB.SetQueue ("ns3::RedQueue");
+//	linkD.SetQueue ("ns3::RedQueue");
+//	linkC.SetQueue ("ns3::RedQueue");
 
 	linkA.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
 	linkA.SetChannelAttribute ("Delay", StringValue ("8ms"));
@@ -210,7 +213,7 @@ int main (int argc, char* argv[])
 	linkD.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
 	linkD.SetChannelAttribute ("Delay", StringValue ("8ms"));
 
-	linkCore.SetDeviceAttribute ("DataRate", StringValue ("8Mbps"));
+	linkCore.SetDeviceAttribute ("DataRate", StringValue ("1Mbps"));
 	linkCore.SetChannelAttribute ("Delay", StringValue ("10ms"));
 
 	/*
@@ -238,7 +241,7 @@ int main (int argc, char* argv[])
 	InternetStackHelper stack;
 	stack.InstallAll ();
 
-	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for " << devs.GetN () << " devices");
+	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for core devices");
 	Ipv4AddressHelper ipv4;
 	ipv4.SetBase ("10.4.0.0", "255.255.255.0");
 	ipv4.Assign (d_A);
@@ -255,6 +258,7 @@ int main (int argc, char* argv[])
 	ipv4.SetBase ("57.20.43.0", "255.255.255.0");
 	ipv4.Assign (coreDevs);
 
+	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for " << devs.GetN () << " devices");
 	ipv4.SetBase ("94.0.0.0", "255.255.255.0");
 	for (size_t i = 0; i < nA.GetN (); ++i)
 		ipv4.Assign (nA.Get (i)->GetDevice (0));
@@ -282,7 +286,7 @@ int main (int argc, char* argv[])
 
 	// Create the UDP traffic
 	NS_LOG (LOG_DEBUG, "Constructing UDP traffic");
-	for (size_t i = 1; i < nA.GetN (); ++i) {
+	for (size_t i = 0; i < nA.GetN (); ++i) {
 		Ptr < Node > nodeSrc = nA.Get (i);
 		Ptr < Ipv4 > ipSrc = nodeSrc->GetObject<Ipv4> ();
 		Ipv4Address addrSrc = ipSrc->GetAddress (1, 0).GetLocal ();
@@ -296,7 +300,7 @@ int main (int argc, char* argv[])
 		udpSinkApps.Add (udpSink.Install (nodeDst));
 
 		OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress (addrDst, udpPort)));
-		onoff.SetAttribute ("DataRate", DataRateValue (DataRate ("500kbps")));
+		onoff.SetAttribute ("DataRate", DataRateValue (DataRate ("50kbps")));
 		onoff.SetAttribute ("PacketSize", UintegerValue (512));
 		udpApps.Add (onoff.Install (nodeSrc));
 
@@ -305,7 +309,7 @@ int main (int argc, char* argv[])
 
 	// Create the TCP traffic
 	NS_LOG (LOG_DEBUG, "Constructing TDP traffic");
-	for (size_t i = 1; i < nB.GetN (); ++i) {
+	for (size_t i = 0; i < nB.GetN (); ++i) {
 		Ptr < Node > nodeSrc = nB.Get (i);
 		Ptr < Ipv4 > ipSrc = nodeSrc->GetObject<Ipv4> ();
 		Ipv4Address addrSrc = ipSrc->GetAddress (1, 0).GetLocal ();
