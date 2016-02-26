@@ -3,7 +3,7 @@
     <!-- Simulation Settings -->
     <default name="ns3::RealtimeSimulatorImpl::SynchronizationMode" value="BestEffort"/>
     <default name="ns3::RealtimeSimulatorImpl::HardLimit" value="+100000000.0ns"/>
-    <!-- <default name="ns3::PacketSocket::RcvBufSize" value="131072"/> -->
+    <default name="ns3::PacketSocket::RcvBufSize" value="131072"/>
 
     <!-- Transport Layer Implementation -->
     <default name="ns3::TcpL4Protocol::SocketType" value="ns3::TcpTahoe"/>
@@ -15,7 +15,7 @@
     <!-- DropTailQueue Attributes -->
     <default name="ns3::DropTailQueue::Mode" value="QUEUE_MODE_PACKETS"/>
     <default name="ns3::DropTailQueue::MaxPackets" value="100"/>
-    <!-- <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/> -->
+    <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/>
 
     <!-- RED Queue Attributes -->
     <!-- Drop Mode Type (DTYPE_NONE, DTYPE_FORCED, or DTYPE_UNFORCED) -->

@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <numeric>
 
 #include "ns3/applications-module.h"
 #include "ns3/config-store-module.h"
@@ -28,8 +29,6 @@ NS_LOG_COMPONENT_DEFINE (LOG_COMPONENT_NAME);
 
 typedef std::pair<NodeContainer, NetDeviceContainer> topology_t;
 
-PointToPointHelper linkA, linkB, linkCore;
-
 // begin/end methods for a standard array
 template<typename T, size_t N>
 T* begin (T (&arr)[N])
@@ -40,134 +39,6 @@ template<typename T, size_t N>
 T* end (T (&arr)[N])
 {
 	return &arr[0] + N;
-}
-
-topology_t InitNetNodes (const std::vector<size_t>& starSpokes, const size_t spokeNodeCount)
-{
-	/*
-	 * Get a count for the total number of nodes in use.
-	 */
-	size_t totalNodes = 0;
-	for (size_t i = 0; i < starSpokes.size (); ++i)
-		totalNodes += starSpokes.at (i);
-
-	/*
-	 * Where all nodes are held for the entire topology.
-	 */
-	NodeContainer nodes;
-	NetDeviceContainer devs;
-
-	/*
-	 * Create the container used in simulation for
-	 * representing the computers.
-	 */
-	NS_LOG (LOG_DEBUG, "Creating " << starSpokes.size () << " CSMA stars");
-
-	/*
-	 * Iterate over all star net devices.
-	 */
-	for (size_t i = 0; i < starSpokes.size (); ++i) {
-		const size_t numSpokes = starSpokes.at (i);
-		NS_LOG (LOG_DEBUG,
-				"Creating a " << numSpokes << " spoke CSMA star with " << spokeNodeCount << " nodes on each spoke");
-
-		/*
-		 * Create a CSMA Star net device.
-		 */
-		CsmaHelper csma;
-		csma.SetChannelAttribute ("DataRate", DataRateValue (5000000));
-		csma.SetChannelAttribute ("Delay", TimeValue (MilliSeconds (2)));
-		CsmaStarHelper star (numSpokes, csma);
-
-		for (size_t j = 0; j < star.GetSpokeDevices ().GetN (); ++j) {
-			/*
-			 * Grab the CSMA channel from the current spoke.
-			 */
-			Ptr < Channel > channel = star.GetSpokeDevices ().Get (j)->GetChannel ();
-			Ptr < CsmaChannel > csmaChannel = channel->GetObject<CsmaChannel> ();
-
-			/*
-			 * Place somes nodes on each spoke of the star.
-			 */
-			NodeContainer nn;
-			nn.Create (spokeNodeCount);
-
-			/*
-			 * Add the spoke to the overall node container.
-			 */
-			nodes.Add (nn);
-
-			NS_LOG (LOG_DEBUG, "Currently " << nodes.GetN () << " total nodes");
-
-			devs.Add (csma.Install (nn, csmaChannel));
-		}
-
-		// Add the hub node itself to the list
-		nodes.Add (star.GetHub ());
-	}
-
-	/*
-	 * Create point-to-point links connecting all of the stars together.
-	 */
-	NS_LOG (LOG_DEBUG, "Creating nodes for middle dumbbell link");
-	NodeContainer nn;
-	nn.Create (2);
-	// Add them to the nodes list
-	nodes.Add (nn);
-
-	// Represents the index of the hub nodes for each star CSMA LAN
-	size_t hub1_1 = spokeNodeCount * starSpokes.at (0);
-	size_t hub1_2 = hub1_1 + (spokeNodeCount * starSpokes.at (1));
-	size_t hub2_1 = hub1_2 + (spokeNodeCount * starSpokes.at (2));
-	size_t hub2_2 = hub2_1 + (spokeNodeCount * starSpokes.at (3));
-
-	/*
-	 * Set the attributes for the links between the star subnets and
-	 * for the dumbbell link.
-	 */
-	linkA.SetQueue ("ns3::DropTailQueue");
-	linkB.SetQueue ("ns3::DropTailQueue");
-	linkCore.SetQueue ("ns3::DropTailQueue");
-//	linkCore.SetQueue ("ns3::RedQueue");
-//	linkA.SetQueue ("ns3::RedQueue");
-//	linkB.SetQueue ("ns3::RedQueue");
-
-	linkA.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
-	linkA.SetChannelAttribute ("Delay", StringValue ("15ms"));
-
-	linkB.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
-	linkB.SetChannelAttribute ("Delay", StringValue ("15ms"));
-
-	linkCore.SetDeviceAttribute ("DataRate", StringValue ("3Mbps"));
-	linkCore.SetChannelAttribute ("Delay", StringValue ("5ms"));
-
-	/*
-	 * Create the network devices.
-	 */
-	NS_LOG (LOG_DEBUG, "Creating network interface devices for " << nodes.GetN () << " nodes");
-
-	// Index values for left and right nodes
-	const size_t leftNode = nodes.GetN () - 1;
-	const size_t rightNode = nodes.GetN () - 2;
-
-	NS_LOG (LOG_DEBUG, "Connecting node " << hub1_1 << " to the dumbbell's left side");
-	devs.Add (linkA.Install (nodes.Get (hub1_1), nodes.Get (leftNode)));
-	NS_LOG (LOG_DEBUG, "Connecting node " << hub1_2 << " to the dumbbell's left side");
-	devs.Add (linkA.Install (nodes.Get (hub1_2), nodes.Get (leftNode)));
-
-	NS_LOG (LOG_DEBUG, "Connecting node " << hub2_1 << " to the dumbbell's right side");
-	devs.Add (linkB.Install (nodes.Get (hub2_1), nodes.Get (rightNode)));
-	NS_LOG (LOG_DEBUG, "Connecting node " << hub2_2 << " to the dumbbell's right side");
-	devs.Add (linkB.Install (nodes.Get (hub2_2), nodes.Get (rightNode)));
-
-	NS_LOG (LOG_DEBUG, "Connecting the two sides together through the dumbbell link");
-	devs.Add (linkCore.Install (nodes.Get (leftNode), nodes.Get (rightNode)));
-
-	// Wrap up the topology devices and nodes and return them
-	topology_t topo;
-	topo.first = nodes;
-	topo.second = devs;
-	return topo;
 }
 
 void SetSimConfigs (const std::string& xml_file)
@@ -210,17 +81,157 @@ int main (int argc, char* argv[])
 	 * Vector representing the number of subnodes connected
 	 * to each subnode.
 	 */
+	size_t nodesPerSpoke = 4;
 	size_t sss[] = { 4, 4, 4, 4 };
 	std::vector < size_t > starSpokes (begin (sss), end (sss));
 
-	size_t nodesPerSpoke = 4;
-	topology_t topo = InitNetNodes (starSpokes, nodesPerSpoke);
+	/*
+	 * Get a count for the total number of nodes in use.
+	 */
+	size_t totalNodes = 0;
+	for (size_t i = 0; i < starSpokes.size (); ++i)
+		totalNodes += starSpokes.at (i);
 
-	// These hold all devices and nodes in the topology
+	/*
+	 * Where all the endpoint nodes in the topology are held.
+	 */
 	NodeContainer nodes;
 	NetDeviceContainer devs;
-	nodes = topo.first;
-	devs = topo.second;
+
+	/*
+	 * Create the container used in simulation for
+	 * representing the computers.
+	 */
+	NS_LOG (LOG_DEBUG, "Creating " << starSpokes.size () << " CSMA stars");
+
+	/*
+	 * Where the CSMA intermediate hubs are held.
+	 */
+	NodeContainer hubNodes;
+
+	/*
+	 * Iterate over all star net devices.
+	 */
+	for (size_t i = 0; i < starSpokes.size (); ++i) {
+		const size_t numSpokes = starSpokes.at (i);
+		NS_LOG (LOG_DEBUG,
+				"Creating a " << numSpokes << " spoke CSMA star with " << nodesPerSpoke << " nodes on each spoke");
+
+		/*
+		 * Create a CSMA Star net device.
+		 */
+		CsmaHelper csma;
+		csma.SetChannelAttribute ("DataRate", DataRateValue (DataRate ("500kb/s")));
+		csma.SetChannelAttribute ("Delay", TimeValue (MilliSeconds (2)));
+		CsmaStarHelper star (numSpokes, csma);
+
+		for (size_t j = 0; j < star.GetSpokeDevices ().GetN (); ++j) {
+			/*
+			 * Grab the CSMA channel from the current spoke.
+			 */
+			Ptr < Channel > channel = star.GetSpokeDevices ().Get (j)->GetChannel ();
+			Ptr < CsmaChannel > csmaChannel = channel->GetObject<CsmaChannel> ();
+
+			/*
+			 * Place somes nodes on each spoke of the star.
+			 */
+			NodeContainer nn;
+			nn.Create (nodesPerSpoke);
+
+			/*
+			 * Add the spoke to the overall node container.
+			 */
+			nodes.Add (nn);
+
+			NS_LOG (LOG_DEBUG, "Currently " << nodes.GetN () << " total nodes");
+
+			devs.Add (csma.Install (nn, csmaChannel));
+		}
+
+		// Add the hub to the list for storing all hub nodes
+		hubNodes.Add (star.GetHub ());
+	}
+
+	/*
+	 * Create point-to-point links connecting all of the stars together.
+	 */
+	NodeContainer coreNodes;
+	NetDeviceContainer coreDevs;
+
+	NS_LOG (LOG_DEBUG, "Creating nodes for middle dumbbell link");
+	coreNodes.Create (2);
+
+	NodeContainer n_A = NodeContainer (hubNodes.Get (0), coreNodes.Get (0));
+	NodeContainer nA = NodeContainer (hubNodes.Get (0));
+	for (size_t i = 0; i < nodesPerSpoke * starSpokes.at (0); ++i)
+		nA.Add (nodes.Get (i));
+
+	NodeContainer n_B = NodeContainer (hubNodes.Get (1), coreNodes.Get (0));
+	NodeContainer nB = NodeContainer (hubNodes.Get (1));
+	for (size_t i = 0; i < nodesPerSpoke * starSpokes.at (1); ++i)
+		nB.Add (nodes.Get (i + starSpokes.front () * 1));
+
+	NodeContainer n_C = NodeContainer (hubNodes.Get (2), coreNodes.Get (1));
+	NodeContainer nC = NodeContainer (hubNodes.Get (2));
+	for (size_t i = 0; i < nodesPerSpoke * starSpokes.at (2); ++i)
+		nC.Add (nodes.Get (i + starSpokes.front () * 2));
+
+	NodeContainer n_D = NodeContainer (hubNodes.Get (3), coreNodes.Get (1));
+	NodeContainer nD = NodeContainer (hubNodes.Get (3));
+	for (size_t i = 0; i < nodesPerSpoke * starSpokes.at (3); ++i)
+		nD.Add (nodes.Get (i + starSpokes.front () * 3));
+
+	PointToPointHelper linkA, linkB, linkC, linkD, linkCore;
+
+	/*
+	 * Set the attributes for the links between the star subnets and
+	 * for the dumbbell link.
+	 */
+//	linkA.SetQueue ("ns3::DropTailQueue");
+//	linkB.SetQueue ("ns3::DropTailQueue");
+//	linkC.SetQueue ("ns3::DropTailQueue");
+//	linkD.SetQueue ("ns3::DropTailQueue");
+//	linkCore.SetQueue ("ns3::DropTailQueue");
+	linkCore.SetQueue ("ns3::RedQueue");
+	linkA.SetQueue ("ns3::RedQueue");
+	linkB.SetQueue ("ns3::RedQueue");
+	linkD.SetQueue ("ns3::RedQueue");
+	linkC.SetQueue ("ns3::RedQueue");
+
+	linkA.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+	linkA.SetChannelAttribute ("Delay", StringValue ("8ms"));
+
+	linkB.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+	linkB.SetChannelAttribute ("Delay", StringValue ("8ms"));
+
+	linkC.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+	linkC.SetChannelAttribute ("Delay", StringValue ("8ms"));
+
+	linkD.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+	linkD.SetChannelAttribute ("Delay", StringValue ("8ms"));
+
+	linkCore.SetDeviceAttribute ("DataRate", StringValue ("8Mbps"));
+	linkCore.SetChannelAttribute ("Delay", StringValue ("10ms"));
+
+	/*
+	 * Create the network devices.
+	 */
+	NetDeviceContainer d_A, d_B, d_C, d_D;
+
+	NS_LOG (LOG_DEBUG, "Connecting n_A");
+	d_A.Add (linkA.Install (n_A));
+
+	NS_LOG (LOG_DEBUG, "Connecting n_B");
+	d_B.Add (linkB.Install (n_B));
+
+	NS_LOG (LOG_DEBUG, "Connecting n_C");
+	d_C.Add (linkC.Install (n_C));
+
+	NS_LOG (LOG_DEBUG, "Connecting n_D");
+	d_D.Add (linkD.Install (n_D));
+
+	NS_LOG (LOG_DEBUG, "Creating network interface devices for " << coreNodes.GetN () << " coreNodes");
+	coreDevs.Add (linkCore.Install (coreNodes));
 
 	// Set IPv4, IPv6, UDP, & TCP stacks to all nodes in the simulation
 	NS_LOG (LOG_DEBUG, "Setting simulation to use IPv4, IPv6, UDP, & TCP stacks");
@@ -228,74 +239,115 @@ int main (int argc, char* argv[])
 	stack.InstallAll ();
 
 	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for " << devs.GetN () << " devices");
-	Ipv4AddressHelper addrsA, addrsB, addrsC, addrsD;
+	Ipv4AddressHelper ipv4;
+	ipv4.SetBase ("10.4.0.0", "255.255.255.0");
+	ipv4.Assign (d_A);
 
-	// Define the addresses
-	addrsA.SetBase ("10.4.0.0", "255.255.255.0");
-	addrsB.SetBase ("10.8.0.0", "255.255.255.0");
-	addrsC.SetBase ("10.4.64.0", "255.255.255.0");
-	addrsD.SetBase ("10.8.64.0", "255.255.255.0");
+	ipv4.SetBase ("10.8.64.0", "255.255.255.0");
+	ipv4.Assign (d_B);
 
-	std::vector < Ipv4AddressHelper > addrs;
-	addrs.push_back (addrsA);
-	addrs.push_back (addrsB);
-	addrs.push_back (addrsC);
-	addrs.push_back (addrsD);
+	ipv4.SetBase ("10.4.128.0", "255.255.255.0");
+	ipv4.Assign (d_C);
 
-	// Assign the addresses to devices
-	Ipv4InterfaceContainer nics;
-	for (size_t i = 0; i < addrs.size (); ++i) {
-		// helper for assigning addresses to the net devices
-		Ipv4AddressHelper addrsSet (addrs.at (i));
+	ipv4.SetBase ("10.8.192.0", "255.255.255.0");
+	ipv4.Assign (d_D);
 
-		const size_t numSpoke = starSpokes.at (i);
-		const size_t numNodes = numSpoke * nodesPerSpoke;
-		const size_t startNode = i * numNodes;
-		for (size_t j = startNode; j < startNode + numNodes; ++j) {
-			nics.Add (addrsSet.Assign (devs.Get (j)));
-			NS_LOG (LOG_DEBUG, "Assigned " << nics.GetAddress (j) << " to device " << j);
-		}
-	}
+	ipv4.SetBase ("57.20.43.0", "255.255.255.0");
+	ipv4.Assign (coreDevs);
+
+	Ipv4InterfaceContainer iA, iB, iC, iD;
+	ipv4.SetBase ("94.0.0.0", "255.255.255.0");
+	for (size_t i = 0; i < nA.GetN (); ++i)
+		iA.Add (ipv4.Assign (nA.Get (i)->GetDevice (0)));
+
+	ipv4.SetBase ("94.1.0.0", "255.255.255.0");
+	for (size_t i = 0; i < nB.GetN (); ++i)
+		iA.Add (ipv4.Assign (nB.Get (i)->GetDevice (0)));
+
+	ipv4.SetBase ("94.2.0.0", "255.255.255.0");
+	for (size_t i = 0; i < nC.GetN (); ++i)
+		iA.Add (ipv4.Assign (nC.Get (i)->GetDevice (0)));
+
+	ipv4.SetBase ("94.3.0.0", "255.255.255.0");
+	for (size_t i = 0; i < nD.GetN (); ++i)
+		iA.Add (ipv4.Assign (nD.Get (i)->GetDevice (0)));
+
+//
+//	ipv4.SetBase ("10.64.32.0", "255.255.255.0");
+//	iB = ipv4.Assign (nB);
+//
+//	ipv4.SetBase ("10.64.64.0", "255.255.255.0");
+//	iC = ipv4.Assign (nC);
+//
+//	ipv4.SetBase ("10.64.192.0", "255.255.255.0");
+//	iD = ipv4.Assign (nD);
 
 	/*
 	 * Assign addresses to the connecting point-to-point links.
 	 */
-	NS_LOG (LOG_DEBUG, "Assigning addresses to dumbbell link devices");
-
-	Ipv4AddressHelper addrsLeft, addrsRight, addrsCore;
-	addrsCore.SetBase ("8.6.4.0", "255.255.255.192");
-	addrsLeft.SetBase ("57.91.0.0", "255.255.255.192");
-	addrsRight.SetBase ("75.15.0.0", "255.255.255.192");
-
-	for (size_t i = 0; i < 4; ++i) {
-		const size_t ii = devs.GetN () + i - 10;
-		nics.Add (addrsLeft.Assign (devs.Get (ii)));
-		NS_LOG (LOG_DEBUG, "Assigned " << nics.GetAddress (ii) << " to device " << ii);
-	}
-
-	for (size_t i = 0; i < 4; ++i) {
-		const size_t ii = devs.GetN () + i - 6;
-		nics.Add (addrsRight.Assign (devs.Get (ii)));
-		NS_LOG (LOG_DEBUG, "Assigned " << nics.GetAddress (ii) << " to device " << ii);
-	}
-
-	for (size_t i = 0; i < 2; ++i) {
-		const size_t ii = devs.GetN () + i - 2;
-		nics.Add (addrsCore.Assign (devs.Get (ii)));
-		NS_LOG (LOG_DEBUG, "Assigned " << nics.GetAddress (ii) << " to device " << ii);
-	}
-
-	NS_LOG (LOG_DEBUG, "Enabling global routing");
-	Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-
-	NS_LOG (LOG_DEBUG, nics.GetN () << " total interfaces");
-	NS_LOG (LOG_DEBUG, nodes.GetN () << " total nodes");
+//	NS_LOG (LOG_DEBUG, "Assigning addresses to " << hubDevs.GetN () << " hub interface devices");
+//	Ipv4AddressHelper addrsLeft, addrsRight;
+//	addrsLeft.SetBase ("57.91.0.0", "255.255.255.0");
+//	addrsRight.SetBase ("75.15.0.0", "255.255.255.0");
+//	hubNics.Add (addrsLeft.Assign (hubDevs.Get (1)));
+//	hubNics.Add (addrsLeft.Assign (hubDevs.Get (3)));
+//	hubNics.Add (addrsRight.Assign (hubDevs.Get (5)));
+//	hubNics.Add (addrsRight.Assign (hubDevs.Get (7)));
+//	hubNics.Add (addrsLeft.Assign (coreDevs.Get (0)));
+//	hubNics.Add (addrsRight.Assign (coreDevs.Get (1)));
+//	NS_LOG (LOG_DEBUG, "Assigning addresses to " << coreDevs.GetN () << " core interface devices");
+//	Ipv4AddressHelper addrsCore;
+//	addrsCore.SetBase ("8.6.4.0", "255.255.255.192");
+//	coreNics.Add (addrsCore.Assign (coreDevs));
+//	NS_LOG (LOG_DEBUG, "Enabling global routing");
+//	Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+//	NS_LOG (LOG_DEBUG, nics.GetN () << " total devices");
+//	NS_LOG (LOG_DEBUG, nodes.GetN () << " total nodes");
+//
+//	for (size_t i = 0; i < coreNodes.GetN (); ++i) {
+//		Ptr < Node > n = coreNodes.Get (i);
+//		Ptr < Ipv4 > ip = n->GetObject<Ipv4> ();
+//		// Iterate over all ones associated with this interface
+//		NS_LOG (LOG_DEBUG, "Address list for coreNode " << i << ":");
+//		for (size_t j = 0; j < ip->GetNInterfaces (); ++j) {
+//			NS_LOG (LOG_DEBUG, "  Interface " << j << ":");
+//			for (size_t k = 0; k < ip->GetNAddresses (j); ++k) {
+//				Ipv4Address addr = ip->GetAddress (j, k).GetLocal ();
+//				NS_LOG (LOG_DEBUG, "      " << addr);
+//			}
+//		}
+//	}
+//
+//	for (size_t i = 0; i < hubNodes.GetN (); ++i) {
+//		Ptr < Node > n = hubNodes.Get (i);
+//		Ptr < Ipv4 > ip = n->GetObject<Ipv4> ();
+//		// Iterate over all ones associated with this interface
+//		NS_LOG (LOG_DEBUG, "Address list for hubNode " << i << ":");
+//		for (size_t j = 0; j < ip->GetNInterfaces (); ++j) {
+//			NS_LOG (LOG_DEBUG, "  Interface " << j << ":");
+//			for (size_t k = 0; k < ip->GetNAddresses (j); ++k) {
+//				Ipv4Address addr = ip->GetAddress (j, k).GetLocal ();
+//				NS_LOG (LOG_DEBUG, "      " << addr);
+//			}
+//		}
+//	}
+//
+//	for (size_t i = 0; i < nodes.GetN (); ++i) {
+//		Ptr < Node > n = nodes.Get (i);
+//		Ptr < Ipv4 > ip = n->GetObject<Ipv4> ();
+//		// Iterate over all ones associated with this interface
+//		NS_LOG (LOG_DEBUG, "Address list for endpointNode " << i << ":");
+//		for (size_t j = 0; j < ip->GetNInterfaces (); ++j) {
+//			NS_LOG (LOG_DEBUG, "  Interface " << j << ":");
+//			for (size_t k = 0; k < ip->GetNAddresses (j); ++k) {
+//				Ipv4Address addr = ip->GetAddress (j, k).GetLocal ();
+//				NS_LOG (LOG_DEBUG, "      " << addr);
+//			}
+//		}
+//	}
 
 	// Create traffic sending applications
 	ApplicationContainer udpApps, tcpApps, udpSinkApps, tcpSinkApps;
-
-	typedef std::pair<size_t, size_t> nodePair_t;
-	std::vector<nodePair_t> udpConvs, tcpConvs;
 
 	const uint16_t udpPort = 9, tcpPort = 8080;
 
@@ -303,57 +355,64 @@ int main (int argc, char* argv[])
 	PacketSinkHelper udpSink ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), udpPort));
 	PacketSinkHelper tcpSink ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), tcpPort));
 
-	// Create pairs of nodes that will send data back and forwarth
-	const size_t nodesPerLan = nodesPerSpoke * starSpokes.front ();
-	for (size_t i = 0; i < nodesPerLan; ++i) {
-		// Star LAN numbers 0 and 2 will be sending UDP data across the queues
-		udpConvs.push_back (std::make_pair ((0 * nodesPerLan) + i, (2 * nodesPerLan) + i));
-		// Star LAN numbers 1 and 3 will be sending TCP data across the queues
-		tcpConvs.push_back (std::make_pair ((1 * nodesPerLan) + i, (3 * nodesPerLan) + i));
-	}
-
 	// Create the UDP traffic
-	for (size_t i = 0; i < udpConvs.size (); ++i) {
-		nodePair_t c = udpConvs.at (i);
+	NS_LOG (LOG_DEBUG, "Constructing UDP traffic");
+	for (size_t i = 0; i < nA.GetN (); ++i) {
+		Ptr < Node > nodeSrc = nA.Get (i);
+		Ptr < Ipv4 > ipSrc = nodeSrc->GetObject<Ipv4> ();
+		Ipv4Address addrSrc = ipSrc->GetAddress (1, 0).GetLocal ();
 
-		OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress (nics.GetAddress (c.first), udpPort)));
-		udpApps.Add (onoff.Install (nodes.Get (c.first)));
+		Ptr < Node > nodeDst = nC.Get (i);
+		Ptr < Ipv4 > ipDst = nodeDst->GetObject<Ipv4> ();
+		Ipv4Address addrDst = ipDst->GetAddress (1, 0).GetLocal ();
 
-		// Construct the sink end of the TCP flow - install on all just to be safe
-		udpSinkApps.Add (udpSink.Install (nodes.Get (c.second + 2)));
+		// Construct the sink end of the UDF flow
+		PacketSinkHelper udpSink ("ns3::UdpSocketFactory", Address (InetSocketAddress (addrDst, udpPort)));
+		udpSinkApps.Add (udpSink.Install (nodeDst));
 
-		NS_LOG (LOG_DEBUG,
-				nics.GetAddress (c.first) << " (node " << c.first << ") will send random UDP traffic to "
-						<< nics.GetAddress (c.second) << ":" << udpPort << " (node " << c.second << ")");
+		OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress (addrDst, udpPort)));
+		onoff.SetAttribute ("DataRate", DataRate ("500kbps"));
+		onoff.SetAttribute ("PacketSize", UintegerValue (512));
+		udpApps.Add (onoff.Install (nodeSrc));
+
+		NS_LOG (LOG_DEBUG, addrSrc << " => " << addrDst << ":" << udpPort << " [UDP, node " << i << "]");
 	}
-
-	// Start the UDP applications
-	udpSinkApps.Start (Seconds (0.0));
-	udpApps.Start (Seconds (0.0));
 
 	// Create the TCP traffic
-	for (size_t i = 0; i < tcpConvs.size (); ++i) {
-		nodePair_t c = tcpConvs.at (i);
+	NS_LOG (LOG_DEBUG, "Constructing TDP traffic");
+	for (size_t i = 0; i < nB.GetN (); ++i) {
+		Ptr < Node > nodeSrc = nB.Get (i);
+		Ptr < Ipv4 > ipSrc = nodeSrc->GetObject<Ipv4> ();
+		Ipv4Address addrSrc = ipSrc->GetAddress (1, 0).GetLocal ();
 
-		OnOffHelper onoff ("ns3::TcpSocketFactory", Address (InetSocketAddress (nics.GetAddress (c.second), tcpPort)));
-		tcpApps.Add (onoff.Install (nodes.Get (c.first + 1)));
+		Ptr < Node > nodeDst = nD.Get (i);
+		Ptr < Ipv4 > ipDst = nodeDst->GetObject<Ipv4> ();
+		Ipv4Address addrDst = ipDst->GetAddress (1, 0).GetLocal ();
+
+		OnOffHelper onoff ("ns3::TcpSocketFactory", Address (InetSocketAddress (addrDst, tcpPort)));
+		tcpApps.Add (onoff.Install (nodeSrc));
 
 		// Construct the sink end of the TCP flow - install on all just to be safe
-		tcpSinkApps.Add (tcpSink.Install (nodes.Get (c.second + 3)));
+		tcpSinkApps.Add (tcpSink.Install (nodeDst));
 
-		NS_LOG (LOG_DEBUG,
-				nics.GetAddress (c.first) << " (node " << c.first << ") will send random TCP traffic to "
-						<< nics.GetAddress (c.second) << ":" << tcpPort << " (node " << c.second << ")");
+		NS_LOG (LOG_DEBUG, addrSrc << " => " << addrDst << ":" << tcpPort << " [TCP, node " << i << "]");
 	}
 
 	// Start the TCP applications
+	udpSinkApps.Start (Seconds (0.0));
 	tcpSinkApps.Start (Seconds (0.0));
+
+	udpApps.Start (Seconds (0.0));
 	tcpApps.Start (Seconds (0.0));
 
-	const double endTime = 50.0;
+	const double endTime = 10.0;
 	udpApps.Stop (Seconds (endTime));
 	tcpApps.Stop (Seconds (endTime));
 
+	NS_LOG (LOG_DEBUG, "Enabling global routing");
+	Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+
+	// Log traces across the single link
 	linkCore.EnablePcapAll ("linkCore");
 
 	// Run the simulation
