@@ -10,18 +10,16 @@
     <!-- TCP Segment Size -->
     <default name="ns3::TcpSocket::SegmentSize" value="512"/>
     <!-- Window Size -->
-    <default name="ns3::TcpSocketBase::MaxWindowSize" value="8000"/>
+    <default name="ns3::TcpSocketBase::MaxWindowSize" value="64000"/>
 
     <!-- DropTailQueue Attributes -->
     <default name="ns3::DropTailQueue::Mode" value="QUEUE_MODE_PACKETS"/>
     <default name="ns3::DropTailQueue::MaxPackets" value="100"/>
-    <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/>
+    <!-- <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/> -->
 
     <!-- RED Queue Attributes -->
-    
     <!-- Drop Mode Type (DTYPE_NONE, DTYPE_FORCED, or DTYPE_UNFORCED) -->
-    <!-- <default name="ns3::RedQueue::QueueMode" value="DTYPE_NONE"/> -->
-
+    <!-- <default name="RedQueue::QueueMode" value="DTYPE_NONE"/> -->
     <!-- Determines unit for QueueLimit -->
     <default name="ns3::RedQueue::Mode" value="QUEUE_MODE_PACKETS"/>
     <!-- Average of packet size -->
@@ -51,9 +49,8 @@
 
     <!-- Start & Stop Times -->
     <default name="ns3::Application::StartTime" value="+0.0ns"/>
-    <default name="ns3::Application::StopTime" value="+1000.0s"/>
 
     <!-- Random Seed Generation -->
-    <global name="RngSeed" value="1"/>
+    <global name="RngSeed" value="15563394"/>
     <global name="RngRun" value="1"/>
 </ns3>
