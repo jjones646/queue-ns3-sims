@@ -43,7 +43,7 @@
     <!-- NS-1 compatibility -->
     <default name="ns3::RedQueue::Ns1Compat" value="false"/>
     <!-- The RED link bandwidth -->
-    <default name="ns3::RedQueue::LinkBandwidth" value="1500000bps"/>
+    <default name="ns3::RedQueue::LinkBandwidth" value="1.5Mbps"/>
     <!-- The RED link delay -->
     <default name="ns3::RedQueue::LinkDelay" value="+20000000.0ns"/>
 

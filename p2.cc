@@ -1,6 +1,11 @@
 /*
  *  ECE 6110
  *  Project 2
+ *
+ *  Jonathan Jones
+ *
+ *  Topology shown in results pdf.
+ *
  */
 
 #include <algorithm>
@@ -59,281 +64,252 @@ void SetSimConfigs (const std::string& xml_file)
 	Time::SetResolution (Time::NS);
 }
 
+void RttCallback(std::string context, Ptr<const Packet> p, const Address& address) {
+
+}
+
 int main (int argc, char* argv[])
 {
 	// Parse any command line arguments
 	CommandLine cmd;
+	std::string queueType("DropTailQueue");
+	bool traceEN = true;
 	std::string pcapFn ("queue-trace-results");
-	bool traceEN = false;
-	double endTime = 15.0;
-	std::string xml_fn ("/home/jonathan/Documents/queue-sims/ns3-config1.xml");
+	double endTime = 20.0;
+	size_t rttMultiplier = 1;
+	size_t datarateMultiplier = 1;
+	std::string xmlFn ("/home/jonathan/Documents/queue-sims/ns3-config1.xml");
 
+	cmd.AddValue ("queueType", "The type of queue to use for the run ('DropTailQueue' or 'RedQueue')", queueType);
 	cmd.AddValue ("trace", "Enable/Disable dumping the trace at the TCP sink", traceEN);
 	cmd.AddValue ("traceFile", "Base name given to where the results are saved when enabled", pcapFn);
 	cmd.AddValue ("endTime", "The duration when the simulation should be stopped", endTime);
-	cmd.AddValue ("xml", "The name for the XML configuration file.", xml_fn);
+	cmd.AddValue ("rttMultiplier", "An integer multiplier for the round trip time of the topology", rttMultiplier);
+	cmd.AddValue ("datarateMultiplier", "An integer multiplier for the datarate.", datarateMultiplier);
+	cmd.AddValue ("xml", "The name for the XML configuration file.", xmlFn);
 	cmd.Parse (argc, argv);
 
-//	const double endTime = 10.0;
+	// Prefix the queue type with the proper namespace declaration for ns-3
+	queueType = "ns3::" + queueType;
 
-// Initial simulation configurations
-	SetSimConfigs (xml_fn);
-
-	/*
-	 * Vector representing the number of subnodes connected
-	 * to each subnode.
-	 */
-	size_t nodesPerSpoke = 4;
-	size_t sss[] = { 4, 4, 4, 4 };
-	std::vector < size_t > starSpokes (begin (sss), end (sss));
-
-	/*
-	 * Get a count for the total number of nodes in use.
-	 */
-	size_t totalNodes = 0;
-	for (size_t i = 0; i < starSpokes.size (); ++i)
-		totalNodes += starSpokes.at (i);
+	// Initial simulation configurations
+	SetSimConfigs (xmlFn);
 
 	/*
 	 * Where all the endpoint nodes in the topology are held.
 	 */
-	NodeContainer nodes;
-	NetDeviceContainer devs;
+	NodeContainer nCore;
+	NodeContainer nA, nB, nC, nD;
+	NodeContainer n_A, n_B, n_C, n_D;
 
-	/*
-	 * Create the container used in simulation for
-	 * representing the computers.
-	 */
-	NS_LOG (LOG_DEBUG, "Creating " << starSpokes.size () << " CSMA stars");
-
-	/*
-	 * Where the CSMA intermediate hubs are held.
-	 */
-	NodeContainer hubNodes;
-
-	/*
-	 * Iterate over all star net devices.
-	 */
-	for (size_t i = 0; i < starSpokes.size (); ++i) {
-		const size_t numSpokes = starSpokes.at (i);
-		NS_LOG (LOG_DEBUG,
-				"Creating a " << numSpokes << " spoke CSMA star with " << nodesPerSpoke << " nodes on each spoke");
-
-		/*
-		 * Create a CSMA Star net device.
-		 */
-		CsmaHelper csma;
-		csma.SetChannelAttribute ("DataRate", DataRateValue (DataRate ("500kb/s")));
-		csma.SetChannelAttribute ("Delay", TimeValue (MilliSeconds (2)));
-		CsmaStarHelper star (numSpokes, csma);
-
-		for (size_t j = 0; j < star.GetSpokeDevices ().GetN (); ++j) {
-			/*
-			 * Grab the CSMA channel from the current spoke.
-			 */
-			Ptr < Channel > channel = star.GetSpokeDevices ().Get (j)->GetChannel ();
-			Ptr < CsmaChannel > csmaChannel = channel->GetObject<CsmaChannel> ();
-
-			/*
-			 * Place somes nodes on each spoke of the star.
-			 */
-			NodeContainer nn;
-			nn.Create (nodesPerSpoke);
-
-			/*
-			 * Add the spoke to the overall node container.
-			 */
-			nodes.Add (nn);
-
-			NS_LOG (LOG_DEBUG, "Currently " << nodes.GetN () << " total nodes");
-
-			devs.Add (csma.Install (nn, csmaChannel));
-		}
-
-		// Add the hub to the list for storing all hub nodes
-		hubNodes.Add (star.GetHub ());
-	}
-
-	/*
-	 * Create point-to-point links connecting all of the stars together.
-	 */
-	NodeContainer coreNodes;
-	NetDeviceContainer coreDevs;
 
 	NS_LOG (LOG_DEBUG, "Creating nodes for middle dumbbell link");
-	coreNodes.Create (2);
+	nCore.Create (2);
 
-	NodeContainer n_A = NodeContainer (hubNodes.Get (0), coreNodes.Get (0));
-	NodeContainer nA = NodeContainer (hubNodes.Get (0));
-	for (size_t i = 0; i < nodesPerSpoke * starSpokes.at (0); ++i)
-		nA.Add (nodes.Get (i));
+	/**
+	 * Place 2 nodes onto each of the 4 corners of the topology
+	 */
+	NS_LOG (LOG_DEBUG, "Creating nodes for lower sublinks");
+	nA.Create(2);
+	nB.Create(2);
+	nC.Create(2);
+	nD.Create(2);
 
-	NodeContainer n_B = NodeContainer (hubNodes.Get (1), coreNodes.Get (0));
-	NodeContainer nB = NodeContainer (hubNodes.Get (1));
-	for (size_t i = 0; i < nodesPerSpoke * starSpokes.at (1); ++i)
-		nB.Add (nodes.Get (i + starSpokes.front () * 1));
+	/**
+	 * Create node groups for links leading to the center dumbbell nodes
+	 */
+	NS_LOG (LOG_DEBUG, "Creating nodes for linking sublinks to the core nodes");
+	n_A = NodeContainer (nA.Get (0), nCore.Get (0));
+	n_B = NodeContainer (nB.Get (0), nCore.Get (0));
+	n_C = NodeContainer (nC.Get (0), nCore.Get (1));
+	n_D = NodeContainer (nD.Get (0), nCore.Get (1));
 
-	NodeContainer n_C = NodeContainer (hubNodes.Get (2), coreNodes.Get (1));
-	NodeContainer nC = NodeContainer (hubNodes.Get (2));
-	for (size_t i = 0; i < nodesPerSpoke * starSpokes.at (2); ++i)
-		nC.Add (nodes.Get (i + starSpokes.front () * 2));
-
-	NodeContainer n_D = NodeContainer (hubNodes.Get (3), coreNodes.Get (1));
-	NodeContainer nD = NodeContainer (hubNodes.Get (3));
-	for (size_t i = 0; i < nodesPerSpoke * starSpokes.at (3); ++i)
-		nD.Add (nodes.Get (i + starSpokes.front () * 3));
-
-	PointToPointHelper linkA, linkB, linkC, linkD, linkCore;
+	// Links between the lower subnodes
+	PointToPointHelper linkA1_A2, linkB1_B2, linkC1_C2, linkD1_D2;
+	// Links leading to the core nodes
+	PointToPointHelper linkA_Core1, linkB_Core1, linkC_Core2, linkD_Core2;
+	// Link between the core nodes - the dumbbell link
+	PointToPointHelper linkCore1_Core2;
 
 	/*
 	 * Set the attributes for the links between the star subnets and
 	 * for the dumbbell link.
 	 */
-	linkA.SetQueue ("ns3::DropTailQueue");
-	linkB.SetQueue ("ns3::DropTailQueue");
-	linkC.SetQueue ("ns3::DropTailQueue");
-	linkD.SetQueue ("ns3::DropTailQueue");
-	linkCore.SetQueue ("ns3::DropTailQueue");
+	linkA1_A2.SetQueue (queueType);
+	linkB1_B2.SetQueue (queueType);
+	linkC1_C2.SetQueue (queueType);
+	linkD1_D2.SetQueue (queueType);
+	linkA_Core1.SetQueue (queueType);
+	linkB_Core1.SetQueue (queueType);
+	linkC_Core2.SetQueue (queueType);
+	linkD_Core2.SetQueue (queueType);
+	linkCore1_Core2.SetQueue (queueType);
 
-//	linkCore.SetQueue ("ns3::RedQueue");
-//	linkA.SetQueue ("ns3::RedQueue");
-//	linkB.SetQueue ("ns3::RedQueue");
-//	linkD.SetQueue ("ns3::RedQueue");
-//	linkC.SetQueue ("ns3::RedQueue");
+	/**
+	 * Set the round trip times based on the multiplier value
+	 */
+	std::ostringstream conv;
+	conv << rttMultiplier * 3;
+	std::string rtt1(conv.str() + "ms");
+	NS_LOG (LOG_DEBUG, "RTT 1:\t" << rtt1);
 
-	linkA.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-	linkA.SetChannelAttribute ("Delay", StringValue ("8ms"));
+	conv.str(""); conv.clear();
+	conv << rttMultiplier * 7;
+	std::string rtt2(conv.str() + "ms");
+	NS_LOG (LOG_DEBUG, "RTT 1:\t" << rtt2);
 
-	linkB.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-	linkB.SetChannelAttribute ("Delay", StringValue ("8ms"));
+	conv.str(""); conv.clear();
+	conv << rttMultiplier * 12;
+	std::string rtt3(conv.str() + "ms");
+	NS_LOG (LOG_DEBUG, "RTT 1:\t" << rtt3);
 
-	linkC.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-	linkC.SetChannelAttribute ("Delay", StringValue ("8ms"));
+	linkA1_A2.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+	linkA1_A2.SetChannelAttribute ("Delay", StringValue (rtt1));
+	linkB1_B2.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+	linkB1_B2.SetChannelAttribute ("Delay", StringValue (rtt1));
+	linkC1_C2.SetDeviceAttribute ("DataRate", StringValue ("5bps"));
+	linkC1_C2.SetChannelAttribute ("Delay", StringValue (rtt1));
+	linkD1_D2.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+	linkD1_D2.SetChannelAttribute ("Delay", StringValue (rtt1));
 
-	linkD.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-	linkD.SetChannelAttribute ("Delay", StringValue ("8ms"));
+	linkA_Core1.SetDeviceAttribute ("DataRate", StringValue ("3Mbps"));
+	linkA_Core1.SetChannelAttribute ("Delay", StringValue (rtt2));
+	linkB_Core1.SetDeviceAttribute ("DataRate", StringValue ("3Mbps"));
+	linkB_Core1.SetChannelAttribute ("Delay", StringValue (rtt2));
+	linkC_Core2.SetDeviceAttribute ("DataRate", StringValue ("3Mbps"));
+	linkC_Core2.SetChannelAttribute ("Delay", StringValue (rtt2));
+	linkD_Core2.SetDeviceAttribute ("DataRate", StringValue ("3Mbps"));
+	linkD_Core2.SetChannelAttribute ("Delay", StringValue (rtt2));
 
-	linkCore.SetDeviceAttribute ("DataRate", StringValue ("1Mbps"));
-	linkCore.SetChannelAttribute ("Delay", StringValue ("10ms"));
+	linkCore1_Core2.SetDeviceAttribute ("DataRate", StringValue ("3Mbps"));
+	linkCore1_Core2.SetChannelAttribute ("Delay", StringValue (rtt3));
 
 	/*
 	 * Create the network devices.
 	 */
+	NetDeviceContainer dCore;
+	NetDeviceContainer dA, dB, dC, dD;
 	NetDeviceContainer d_A, d_B, d_C, d_D;
 
-	NS_LOG (LOG_DEBUG, "Connecting n_A");
-	d_A.Add (linkA.Install (n_A));
+	NS_LOG (LOG_DEBUG, "Connecting lower nodes together");
+	dA.Add (linkA1_A2.Install (nA));
+	dB.Add (linkB1_B2.Install (nB));
+	dC.Add (linkC1_C2.Install (nC));
+	dD.Add (linkD1_D2.Install (nD));
 
-	NS_LOG (LOG_DEBUG, "Connecting n_B");
-	d_B.Add (linkB.Install (n_B));
+	NS_LOG (LOG_DEBUG, "Connecting lower nodes to core");
+	d_A.Add (linkA_Core1.Install (n_A));
+	d_B.Add (linkA_Core1.Install (n_B));
+	d_C.Add (linkC_Core2.Install (n_C));
+	d_D.Add (linkD_Core2.Install (n_D));
 
-	NS_LOG (LOG_DEBUG, "Connecting n_C");
-	d_C.Add (linkC.Install (n_C));
-
-	NS_LOG (LOG_DEBUG, "Connecting n_D");
-	d_D.Add (linkD.Install (n_D));
-
-	NS_LOG (LOG_DEBUG, "Creating network interface devices for " << coreNodes.GetN () << " coreNodes");
-	coreDevs.Add (linkCore.Install (coreNodes));
+	NS_LOG (LOG_DEBUG, "Connecting core nodes together");
+	dCore.Add (linkCore1_Core2.Install (nCore));
 
 	// Set IPv4, IPv6, UDP, & TCP stacks to all nodes in the simulation
 	NS_LOG (LOG_DEBUG, "Setting simulation to use IPv4, IPv6, UDP, & TCP stacks");
 	InternetStackHelper stack;
 	stack.InstallAll ();
 
-	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for core devices");
 	Ipv4AddressHelper ipv4;
-	ipv4.SetBase ("10.4.0.0", "255.255.255.0");
+	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for lower links");
+	ipv4.SetBase ("10.0.0.0", "255.255.255.0");
+	ipv4.Assign (dA);
+	ipv4.SetBase ("10.0.1.0", "255.255.255.0");
+	ipv4.Assign (dB);
+	ipv4.SetBase ("10.0.2.0", "255.255.255.0");
+	ipv4.Assign (dC);
+	ipv4.SetBase ("10.0.3.0", "255.255.255.0");
+	ipv4.Assign (dD);
+
+	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for links to the core");
+	ipv4.SetBase ("172.16.0.0", "255.255.255.0");
 	ipv4.Assign (d_A);
-
-	ipv4.SetBase ("10.8.64.0", "255.255.255.0");
+	ipv4.SetBase ("172.17.0.0", "255.255.255.0");
 	ipv4.Assign (d_B);
-
-	ipv4.SetBase ("10.4.128.0", "255.255.255.0");
+	ipv4.SetBase ("172.18.0.0", "255.255.255.0");
 	ipv4.Assign (d_C);
-
-	ipv4.SetBase ("10.8.192.0", "255.255.255.0");
+	ipv4.SetBase ("172.19.0.0", "255.255.255.0");
 	ipv4.Assign (d_D);
 
+	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for the core link");
 	ipv4.SetBase ("57.20.43.0", "255.255.255.0");
-	ipv4.Assign (coreDevs);
-
-	NS_LOG (LOG_DEBUG, "Assigning IPv4 addresses for " << devs.GetN () << " devices");
-	ipv4.SetBase ("94.0.0.0", "255.255.255.0");
-	for (size_t i = 0; i < nA.GetN (); ++i)
-		ipv4.Assign (nA.Get (i)->GetDevice (0));
-
-	ipv4.SetBase ("94.1.0.0", "255.255.255.0");
-	for (size_t i = 0; i < nB.GetN (); ++i)
-		ipv4.Assign (nB.Get (i)->GetDevice (0));
-
-	ipv4.SetBase ("94.2.0.0", "255.255.255.0");
-	for (size_t i = 0; i < nC.GetN (); ++i)
-		ipv4.Assign (nC.Get (i)->GetDevice (0));
-
-	ipv4.SetBase ("94.3.0.0", "255.255.255.0");
-	for (size_t i = 0; i < nD.GetN (); ++i)
-		ipv4.Assign (nD.Get (i)->GetDevice (0));
+	ipv4.Assign (dCore);
 
 	// Create traffic sending applications
 	ApplicationContainer udpApps, tcpApps, udpSinkApps, tcpSinkApps;
-
 	const uint16_t udpPort = 9, tcpPort = 8080;
 
-	// Helper objects for creating the TCP & UDP sinks
-	PacketSinkHelper udpSink ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), udpPort));
-	PacketSinkHelper tcpSink ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), tcpPort));
+	// convert the datarates into string values
+	conv.str(""); conv.clear();
+	conv << datarateMultiplier * 0.58;
+	std::string datarate1_3(conv.str() + "Mbps");
+	NS_LOG (LOG_DEBUG, "DataRate 1 & 3:\t" << datarate1_3);
 
-	// Create the UDP traffic
+	conv.str(""); conv.clear();
+	conv << datarateMultiplier * 0.33;
+	std::string datarate2(conv.str() + "Mbps");
+	NS_LOG (LOG_DEBUG, "DataRate 2:\t" << datarate2);
+
+	// ===== Create the UDP traffic =====
 	NS_LOG (LOG_DEBUG, "Constructing UDP traffic");
-	for (size_t i = 0; i < nA.GetN (); ++i) {
-		Ptr < Node > nodeSrc = nA.Get (i);
-		Ptr < Ipv4 > ipSrc = nodeSrc->GetObject<Ipv4> ();
-		Ipv4Address addrSrc = ipSrc->GetAddress (1, 0).GetLocal ();
+	// Setup a UDP flow going from the bottom of A to the bottom of C
+	Ptr < Node > nUdpSrc1 = nA.Get (1);
+	Ptr < Node > nUdpDst1 = nC.Get (1);
+	Ptr < Ipv4 > updSrc1 = nUdpSrc1->GetObject<Ipv4> ();
+	Ptr < Ipv4 > udpDst1 = nUdpDst1->GetObject<Ipv4> ();
+	Ipv4Address udpSrcAddr1 = updSrc1->GetAddress (1, 0).GetLocal ();
+	Ipv4Address udpDstAddr1 = udpDst1->GetAddress (1, 0).GetLocal ();
+	PacketSinkHelper udpSink1 ("ns3::UdpSocketFactory", Address (InetSocketAddress (udpDstAddr1, udpPort)));
+	udpSinkApps.Add (udpSink1.Install (nUdpDst1));
+	OnOffHelper onOff_Udp1 ("ns3::UdpSocketFactory", Address (InetSocketAddress (udpDstAddr1, udpPort)));
+	onOff_Udp1.SetAttribute ("OnTime", StringValue ("ns3::UniformRandomVariable[Min=0.,Max=1.]"));
+	onOff_Udp1.SetAttribute ("OffTime", StringValue ("ns3::UniformRandomVariable[Min=0.,Max=1.]"));
+	onOff_Udp1.SetAttribute ("DataRate", DataRateValue (DataRate (datarate1_3)));
+	udpApps.Add (onOff_Udp1.Install (nUdpSrc1));
+	NS_LOG (LOG_DEBUG, udpSrcAddr1 << " => " << udpDstAddr1 << ":" << udpPort << " [UDP]");
 
-		Ptr < Node > nodeDst = nC.Get (i);
-		Ptr < Ipv4 > ipDst = nodeDst->GetObject<Ipv4> ();
-		Ipv4Address addrDst = ipDst->GetAddress (1, 0).GetLocal ();
+	// Setup a UDP flow going from the bottom of D to the bottom of C
+	Ptr < Node > nUdpSrc2 = nD.Get (1);
+	Ptr < Node > nUdpDst2 = nC.Get (1);
+	Ptr < Ipv4 > updSrc2 = nUdpSrc2->GetObject<Ipv4> ();
+	Ptr < Ipv4 > udpDst2 = nUdpDst2->GetObject<Ipv4> ();
+	Ipv4Address udpSrcAddr2 = updSrc2->GetAddress (1, 0).GetLocal ();
+	Ipv4Address udpDstAddr2 = udpDst2->GetAddress (1, 0).GetLocal ();
+	PacketSinkHelper udpSink2 ("ns3::UdpSocketFactory", Address (InetSocketAddress (udpDstAddr2, 2 * udpPort)));
+	udpSinkApps.Add (udpSink2.Install (nUdpDst2));
+	OnOffHelper onOff_Udp2 ("ns3::UdpSocketFactory", Address (InetSocketAddress (udpDstAddr2, 2 * udpPort)));
+	onOff_Udp2.SetAttribute ("OnTime", StringValue ("ns3::UniformRandomVariable[Min=0.,Max=1.]"));
+	onOff_Udp2.SetAttribute ("OffTime", StringValue ("ns3::UniformRandomVariable[Min=0.,Max=1.]"));
+	onOff_Udp2.SetAttribute ("DataRate", DataRateValue (DataRate (datarate2)));
+	udpApps.Add (onOff_Udp2.Install (nUdpSrc2));
+	NS_LOG (LOG_DEBUG, udpSrcAddr2 << " => " << udpDstAddr2 << ":" << 2 * udpPort << " [UDP]");
 
-		// Construct the sink end of the UDF flow
-		PacketSinkHelper udpSink ("ns3::UdpSocketFactory", Address (InetSocketAddress (addrDst, udpPort)));
-		udpSinkApps.Add (udpSink.Install (nodeDst));
-
-		OnOffHelper onoff ("ns3::UdpSocketFactory", Address (InetSocketAddress (addrDst, udpPort)));
-		onoff.SetAttribute ("DataRate", DataRateValue (DataRate ("50kbps")));
-		onoff.SetAttribute ("PacketSize", UintegerValue (512));
-		udpApps.Add (onoff.Install (nodeSrc));
-
-		NS_LOG (LOG_DEBUG, addrSrc << " => " << addrDst << ":" << udpPort << " [UDP, node " << i << "]");
-	}
-
-	// Create the TCP traffic
+	// ===== Create the TCP traffic =====
 	NS_LOG (LOG_DEBUG, "Constructing TDP traffic");
-	for (size_t i = 0; i < nB.GetN (); ++i) {
-		Ptr < Node > nodeSrc = nB.Get (i);
-		Ptr < Ipv4 > ipSrc = nodeSrc->GetObject<Ipv4> ();
-		Ipv4Address addrSrc = ipSrc->GetAddress (1, 0).GetLocal ();
+	PacketSinkHelper tcpSink ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), tcpPort));
+	// Setup a UDP flow going from the bottom of B to the bottom of D
+	Ptr < Node > nTcpSrc1 = nB.Get (1);
+	Ptr < Node > nTcpDst1 = nD.Get (1);
+	Ptr < Ipv4 > tcpSrc1 = nTcpSrc1->GetObject<Ipv4> ();
+	Ptr < Ipv4 > tcpDst1 = nTcpDst1->GetObject<Ipv4> ();
+	Ipv4Address tcpSrcAddr1 = tcpSrc1->GetAddress (1, 0).GetLocal ();
+	Ipv4Address tcpDstAddr1 = tcpDst1->GetAddress (1, 0).GetLocal ();
+	OnOffHelper onOff_Tcp1 ("ns3::TcpSocketFactory", Address (InetSocketAddress (tcpDstAddr1, tcpPort)));
+	onOff_Tcp1.SetAttribute ("OnTime", StringValue ("ns3::UniformRandomVariable[Min=0.,Max=1.]"));
+	onOff_Tcp1.SetAttribute ("OffTime", StringValue ("ns3::UniformRandomVariable[Min=0.,Max=1.]"));
+	onOff_Tcp1.SetAttribute ("DataRate", DataRateValue (DataRate (datarate1_3)));
+	tcpApps.Add (onOff_Tcp1.Install (nTcpSrc1));
+	tcpSinkApps.Add (tcpSink.Install (nTcpDst1));
+	NS_LOG (LOG_DEBUG, tcpSrcAddr1 << " => " << tcpDstAddr1 << ":" << tcpPort << " [TCP]");
 
-		Ptr < Node > nodeDst = nD.Get (i);
-		Ptr < Ipv4 > ipDst = nodeDst->GetObject<Ipv4> ();
-		Ipv4Address addrDst = ipDst->GetAddress (1, 0).GetLocal ();
-
-		OnOffHelper onoff ("ns3::TcpSocketFactory", Address (InetSocketAddress (addrDst, tcpPort)));
-		tcpApps.Add (onoff.Install (nodeSrc));
-
-		// Construct the sink end of the TCP flow - install on all just to be safe
-		tcpSinkApps.Add (tcpSink.Install (nodeDst));
-
-		NS_LOG (LOG_DEBUG, addrSrc << " => " << addrDst << ":" << tcpPort << " [TCP, node " << i << "]");
-	}
-
-	// Start the TCP applications
+	// Start the applications at time 0
+	udpApps.Start (Seconds (0.0));
 	udpSinkApps.Start (Seconds (0.0));
+	tcpApps.Start (Seconds (0.0));
 	tcpSinkApps.Start (Seconds (0.0));
 
-	udpApps.Start (Seconds (0.0));
-	tcpApps.Start (Seconds (0.0));
-
+	// Stop at the given endtime
 	udpApps.Stop (Seconds (endTime));
 	tcpApps.Stop (Seconds (endTime));
 
@@ -341,21 +317,39 @@ int main (int argc, char* argv[])
 	Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
 	// Log traces across the single link
-	linkCore.EnablePcapAll (pcapFn);
+	if (traceEN)
+		linkCore1_Core2.EnablePcapAll (pcapFn);
 
 	// Run the simulation
 	NS_LOG (LOG_INFO, "Starting simulation");
 	Simulator::Run ();
 
-	// Get the final simulation runtime
-	Time sim_endTime = Simulator::Now ();
+	std::cout << "Queue Type:\t" << queueType << std::endl;
 
-	Simulator::Destroy ();
+	uint32_t totalRxBytesTcp = 0;
+	for (uint32_t i = 0; i < tcpSinkApps.GetN (); i++) {
+		Ptr <Application> app = tcpSinkApps.Get (i);
+		Ptr <PacketSink> pktSink = DynamicCast <PacketSink> (app);
+		totalRxBytesTcp += pktSink->GetTotalRx ();
+	}
 
-	NS_LOG (LOG_INFO, "Simulation complete");
+	std::cout << "TCP Goodput:\t" << totalRxBytesTcp / Simulator::Now ().GetSeconds () << " bytes/sec." << std::endl;
+
+	// Sum up the number of received bytes
+	uint32_t totalRxBytesUdp = 0;
+	for (uint32_t i = 0; i < udpSinkApps.GetN (); i++) {
+		Ptr <Application> app = udpSinkApps.Get (i);
+		Ptr <PacketSink> pktSink = DynamicCast <PacketSink> (app);
+		totalRxBytesUdp += pktSink->GetTotalRx ();
+	}
+
+	std::cout << "UDP Goodput:\t" << totalRxBytesUdp / Simulator::Now ().GetSeconds () << " bytes/sec." << std::endl;
 
 	// Print out the overall simulation runtime
-	std::cout << "Total time: " << Seconds (sim_endTime) << std::endl;
+	std::cout << "Total Time:\t" << Simulator::Now ().GetSeconds () << " s" << std::endl;
+
+	NS_LOG (LOG_INFO, "Simulation complete, destroying simulator");
+	Simulator::Destroy ();
 
 	return 0;
 }

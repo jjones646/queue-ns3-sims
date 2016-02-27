@@ -1,0 +1,10 @@
+Waf: Entering directory `/home/jonathan/Documents/ns-allinone-3.24.1/ns-3.24.1/build'
+[2126/2484] Compiling scratch/p2.cc
+Waf: Leaving directory `/home/jonathan/Documents/ns-allinone-3.24.1/ns-3.24.1/build'
+Waf: Entering directory `/home/jonathan/Documents/ns-allinone-3.24.1/ns-3.24.1/build'
+[ 886/2484] Compiling scratch/p2.cc
+[2432/2484] Linking build/scratch/p2
+Waf: Leaving directory `/home/jonathan/Documents/ns-allinone-3.24.1/ns-3.24.1/build'
+Build commands will be stored in build/compile_commands.json
+'build' finished successfully (2.801s)
+Interrupted 
