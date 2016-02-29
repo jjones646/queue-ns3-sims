@@ -2,20 +2,16 @@
 <ns3>
     <!-- Simulation Settings -->
     <default name="ns3::RealtimeSimulatorImpl::SynchronizationMode" value="BestEffort"/>
-    <default name="ns3::RealtimeSimulatorImpl::HardLimit" value="+1000000000.0ns"/>
-    <default name="ns3::PacketSocket::RcvBufSize" value="131072"/>
 
     <!-- Transport Layer Implementation -->
     <default name="ns3::TcpL4Protocol::SocketType" value="ns3::TcpTahoe"/>
-    <!-- TCP Segment Size -->
-    <default name="ns3::TcpSocket::SegmentSize" value="512"/>
     <!-- Window Size -->
-    <default name="ns3::TcpSocketBase::MaxWindowSize" value="64000"/>
+    <default name="ns3::TcpSocketBase::MaxWindowSize" value="32000"/>
 
     <!-- DropTailQueue Attributes -->
     <default name="ns3::DropTailQueue::Mode" value="QUEUE_MODE_PACKETS"/>
-    <default name="ns3::DropTailQueue::MaxPackets" value="100"/>
-    <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/>
+    <default name="ns3::DropTailQueue::MaxPackets" value="150"/>
+    <!-- <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/> -->
 
     <!-- RED Queue Attributes -->
     <!-- Drop Mode Type (DTYPE_NONE, DTYPE_FORCED, or DTYPE_UNFORCED) -->
@@ -31,21 +27,21 @@
     <!-- True to increases dropping probability slowly when average queue exceeds maxthresh -->
     <default name="ns3::RedQueue::Gentle" value="true"/>
     <!-- Minimum average length threshold in packets/bytes -->
-    <default name="ns3::RedQueue::MinTh" value="5"/>
+    <default name="ns3::RedQueue::MinTh" value="10"/>
     <!-- Maximum average length threshold in packets/bytes -->
-    <default name="ns3::RedQueue::MaxTh" value="15"/>
+    <default name="ns3::RedQueue::MaxTh" value="18"/>
     <!-- Queue limit in bytes/packets -->
-    <default name="ns3::RedQueue::QueueLimit" value="25"/>
+    <default name="ns3::RedQueue::QueueLimit" value="30"/>
     <!-- Queue weight related to the exponential weighted moving average (EWMA) -->
-    <default name="ns3::RedQueue::QW" value="0.002"/>
+    <default name="ns3::RedQueue::QW" value="0.004"/>
     <!-- The maximum probability of dropping a packet -->
     <default name="ns3::RedQueue::LInterm" value="50"/>
     <!-- NS-1 compatibility -->
     <default name="ns3::RedQueue::Ns1Compat" value="false"/>
     <!-- The RED link bandwidth -->
-    <default name="ns3::RedQueue::LinkBandwidth" value="1500000bps"/>
+    <default name="ns3::RedQueue::LinkBandwidth" value="2Mbps"/>
     <!-- The RED link delay -->
-    <default name="ns3::RedQueue::LinkDelay" value="+20000000.0ns"/>
+    <default name="ns3::RedQueue::LinkDelay" value="+20ms"/>
 
     <!-- Start & Stop Times -->
     <default name="ns3::Application::StartTime" value="+0.0ns"/>

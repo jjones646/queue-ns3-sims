@@ -2,20 +2,16 @@
 <ns3>
     <!-- Simulation Settings -->
     <default name="ns3::RealtimeSimulatorImpl::SynchronizationMode" value="BestEffort"/>
-    <default name="ns3::RealtimeSimulatorImpl::HardLimit" value="+1000000000.0ns"/>
-    <default name="ns3::PacketSocket::RcvBufSize" value="131072"/>
 
     <!-- Transport Layer Implementation -->
     <default name="ns3::TcpL4Protocol::SocketType" value="ns3::TcpTahoe"/>
-    <!-- TCP Segment Size -->
-    <default name="ns3::TcpSocket::SegmentSize" value="512"/>
     <!-- Window Size -->
     <default name="ns3::TcpSocketBase::MaxWindowSize" value="64000"/>
 
     <!-- DropTailQueue Attributes -->
     <default name="ns3::DropTailQueue::Mode" value="QUEUE_MODE_PACKETS"/>
     <default name="ns3::DropTailQueue::MaxPackets" value="100"/>
-    <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/>
+    <!-- <default name="ns3::DropTailQueue::MaxBytes" value="6553500"/> -->
 
     <!-- RED Queue Attributes -->
     <!-- Drop Mode Type (DTYPE_NONE, DTYPE_FORCED, or DTYPE_UNFORCED) -->
@@ -23,7 +19,7 @@
     <!-- Determines unit for QueueLimit -->
     <default name="ns3::RedQueue::Mode" value="QUEUE_MODE_PACKETS"/>
     <!-- Average of packet size -->
-    <default name="ns3::RedQueue::MeanPktSize" value="500"/>
+    <default name="ns3::RedQueue::MeanPktSize" value="400"/>
     <!-- Average packet size used during idle times. Used when m_cautions = 3 -->
     <default name="ns3::RedQueue::IdlePktSize" value="0"/>
     <!-- True for waiting between dropped packets -->
@@ -43,9 +39,9 @@
     <!-- NS-1 compatibility -->
     <default name="ns3::RedQueue::Ns1Compat" value="false"/>
     <!-- The RED link bandwidth -->
-    <default name="ns3::RedQueue::LinkBandwidth" value="1500000bps"/>
+    <default name="ns3::RedQueue::LinkBandwidth" value="1.5Mbps"/>
     <!-- The RED link delay -->
-    <default name="ns3::RedQueue::LinkDelay" value="+20000000.0ns"/>
+    <default name="ns3::RedQueue::LinkDelay" value="+20ms"/>
 
     <!-- Start & Stop Times -->
     <default name="ns3::Application::StartTime" value="+0.0ns"/>

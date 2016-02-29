@@ -31,21 +31,27 @@ function run_waf {
 trap kill_all_sims SIGINT
 trap on_exit EXIT
 
+# make sure waf is ready to run without any errors
+run_waf
+
+# set library path for linker and boost libraries
+export LD_LIBRARY_PATH="/usr/local/lib"
+
 # create directory for the results and make it our working directory
 DIR_NAME="$(date +%Y_%m_%d_%H_%M_%S)_results"
 mkdir "$DIR_NAME"
 pushd "$DIR_NAME" &>/dev/null
 
 # how long to run each simulation for
-ENDTIME=
+ENDTIME=500
+
 # safe pcap traces?
 TRACE_EN="true"
 
 # arrays to iterate over
 CONF_NUMS=(1 2 3)
-RTT_MS=(1 2 3)
+RTT_MS=(1 2 3 4)
 DATAR_MS=(1 2 3)
-
 
 Q_TYPE="RedQueue"
 for CONF_NUM in "${CONF_NUMS[@]}"; do

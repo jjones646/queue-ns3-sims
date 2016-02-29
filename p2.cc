@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <numeric>
 #include <sstream>
+#include <iostream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -74,7 +75,7 @@ int main (int argc, char* argv[])
 	CommandLine cmd;
 	std::string queueType("DropTailQueue");
 	bool traceEN = true;
-	std::string pcapFn ("queue-trace-results");
+	std::string pcapFn ("net-trace");
 	double endTime = 20.0;
 	size_t rttMultiplier = 1;
 	size_t datarateMultiplier = 1;
@@ -91,6 +92,17 @@ int main (int argc, char* argv[])
 
 	// Prefix the queue type with the proper namespace declaration for ns-3
 	queueType = "ns3::" + queueType;
+
+	// get the basename of the xml path that was given
+	std::string xmlBasename;
+	std::string::size_type basePos = xmlFn.rfind("/");
+	if (basePos != std::string::npos) {
+		xmlBasename = xmlFn.substr(basePos + 1, xmlFn.length() - basePos + 1);
+	}
+	else {
+		std::cerr << "Invalid path, " << xmlFn;
+		exit (EXIT_FAILURE);
+	}
 
 	// Initial simulation configurations
 	SetSimConfigs (xmlFn);
@@ -156,12 +168,12 @@ int main (int argc, char* argv[])
 	conv.str(""); conv.clear();
 	conv << rttMultiplier * 7;
 	std::string rtt2(conv.str() + "ms");
-	NS_LOG (LOG_DEBUG, "RTT 1:\t" << rtt2);
+	NS_LOG (LOG_DEBUG, "RTT 2:\t" << rtt2);
 
 	conv.str(""); conv.clear();
 	conv << rttMultiplier * 12;
 	std::string rtt3(conv.str() + "ms");
-	NS_LOG (LOG_DEBUG, "RTT 1:\t" << rtt3);
+	NS_LOG (LOG_DEBUG, "RTT 3:\t" << rtt3);
 
 	linkA1_A2.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
 	linkA1_A2.SetChannelAttribute ("Delay", StringValue (rtt1));
@@ -317,14 +329,22 @@ int main (int argc, char* argv[])
 	Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
 	// Log traces across the single link
-	if (traceEN)
-		linkCore1_Core2.EnablePcapAll (pcapFn);
+	if (traceEN) {
+		// enable tracing on the TCP destination node for checking RTTs later
+		linkB1_B2.EnablePcap (pcapFn + "-tcpsrc1", dB.Get (0), true);
+		linkD1_D2.EnablePcap (pcapFn + "-tcpdst1", dD.Get (0), true);
+		// enable tracing on the 3 links connected to the core2 node
+		linkCore1_Core2.EnablePcap(pcapFn + "-core2-corelink", nCore.Get(1)->GetId(), true);
+		linkC_Core2.EnablePcap(pcapFn + "-core2-Clink", nCore.Get(1)->GetId(), true);
+		linkD_Core2.EnablePcap(pcapFn + "-core2-Dlink", nCore.Get(1)->GetId(), true);
+	}
 
 	// Run the simulation
 	NS_LOG (LOG_INFO, "Starting simulation");
 	Simulator::Run ();
 
-	std::cout << "Queue Type:\t" << queueType << std::endl;
+	std::cout << "rttm," << rttMultiplier;
+	std::cout << ",dratem," << datarateMultiplier << ",type," << queueType;
 
 	uint32_t totalRxBytesTcp = 0;
 	for (uint32_t i = 0; i < tcpSinkApps.GetN (); i++) {
@@ -333,7 +353,7 @@ int main (int argc, char* argv[])
 		totalRxBytesTcp += pktSink->GetTotalRx ();
 	}
 
-	std::cout << "TCP Goodput:\t" << totalRxBytesTcp / Simulator::Now ().GetSeconds () << " bytes/sec." << std::endl;
+	std::cout << ",tcp-gp," << totalRxBytesTcp / Simulator::Now ().GetSeconds ();
 
 	// Sum up the number of received bytes
 	uint32_t totalRxBytesUdp = 0;
@@ -343,10 +363,11 @@ int main (int argc, char* argv[])
 		totalRxBytesUdp += pktSink->GetTotalRx ();
 	}
 
-	std::cout << "UDP Goodput:\t" << totalRxBytesUdp / Simulator::Now ().GetSeconds () << " bytes/sec." << std::endl;
+	std::cout << ",udp-gp," << totalRxBytesUdp / Simulator::Now ().GetSeconds ();
 
 	// Print out the overall simulation runtime
-	std::cout << "Total Time:\t" << Simulator::Now ().GetSeconds () << " s" << std::endl;
+	std::cout << ",time," << Simulator::Now ().GetSeconds ()
+	          << ",xml," << xmlBasename << std::endl;
 
 	NS_LOG (LOG_INFO, "Simulation complete, destroying simulator");
 	Simulator::Destroy ();
